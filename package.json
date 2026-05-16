@@ -1,8 +1,0 @@
-{
-  "name": "cursor-workspace",
-  "private": true,
-  "scripts": {
-    "diagram": "java -jar tools/plantuml/plantuml.jar -charset UTF-8 -tpng diagrams/plantuml/*.puml",
-    "diagram:svg": "java -jar tools/plantuml/plantuml.jar -charset UTF-8 -tsvg diagrams/plantuml/*.puml"
-  }
-}

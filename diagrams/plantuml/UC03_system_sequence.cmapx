@@ -1,9 +1,0 @@
-<map id="UC03_system_sequence_map" name="UC03_system_sequence_map">
-<area shape="rect" id="id1" href="single" title="single" alt="" coords="100,668,162,681"/>
-<area shape="rect" id="id2" href="typical" title="typical" alt="" coords="90,310,160,324"/>
-<area shape="rect" id="id3" href="E1" title="E1" alt="" coords="164,228,271,241"/>
-<area shape="rect" id="id4" href="forward" title="forward" alt="" coords="196,359,326,372"/>
-<area shape="rect" id="id5" href="A2" title="A2" alt="" coords="174,334,306,347"/>
-<area shape="rect" id="id6" href="typical" title="typical" alt="" coords="685,443,756,764"/>
-<area shape="rect" id="id7" href="A1" title="A1" alt="" coords="611,490,698,811"/>
-</map>

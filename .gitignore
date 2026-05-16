@@ -1,10 +1,44 @@
-# CMake build outputs
-build/
-build-*/
+# Ignore everything by default. This repository is intended to publish only
+# the generated/implemented code, tests, simulator, scripts, and CI config.
+*
+
+# Keep repository metadata and CI.
+!/.gitignore
+!/README.md
+!/.github/
+!/.github/workflows/
+!/.github/workflows/*.yml
+!/.github/workflows/*.yaml
+
+# Keep the C++ code project.
+!/cpp/
+!/cpp/CMakeLists.txt
+!/cpp/README.md
+!/cpp/*.ps1
+!/cpp/*.bat
+
+!/cpp/include/
+!/cpp/include/rvc/
+!/cpp/include/rvc/*.hpp
+
+!/cpp/src/
+!/cpp/src/*.cpp
+
+!/cpp/examples/
+!/cpp/examples/*.cpp
+
+!/cpp/tests/
+!/cpp/tests/*.cpp
+!/cpp/tests/*.hpp
+
+!/cpp/simulator/
+!/cpp/simulator/*.cpp
+
+# Always ignore build outputs and generated artifacts.
 cpp/build/
 cpp/build-*/
-
-# Compiled binaries and libraries
+build/
+build-*/
 *.exe
 *.dll
 *.so
@@ -13,8 +47,6 @@ cpp/build-*/
 *.lib
 *.o
 *.obj
-
-# Coverage outputs
 *.gcda
 *.gcno
 *.gcov
@@ -22,7 +54,7 @@ coverage/
 coverage.xml
 coverage.html
 
-# Editor and OS noise
+# Editor and OS noise.
 .vscode/
 .idea/
 .DS_Store
