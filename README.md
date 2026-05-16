@@ -36,11 +36,12 @@ GitHub Actions runs on pushes and pull requests to `main` or `master`.
 
 The workflow:
 
+- runs server-side static analysis with `cppcheck` on RVC headers and source files
 - configures the C++ project with CMake and Ninja
 - builds the GoogleTest executable
 - builds the RVC simulator
 - runs all GoogleTest tests
-- runs all 30 simulator scenarios
+- runs all 30 simulator scenarios as the system-test replacement
 - generates a `gcovr` coverage report
 - uploads coverage and simulator artifacts
 

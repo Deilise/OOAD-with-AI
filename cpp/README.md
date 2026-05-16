@@ -94,7 +94,7 @@ Or run the test executable directly:
 
 GitHub Actions is configured in `.github/workflows/cpp-ci.yml`.
 
-On pushes and pull requests, CI builds this project on Ubuntu, runs GoogleTest, runs the 30-scenario simulator, generates coverage, and uploads artifacts.
+On pushes and pull requests, CI runs `cppcheck` static analysis on the RVC headers and source files. It then builds this project, runs GoogleTest, runs the 30-scenario simulator as the system-test replacement, generates coverage, and uploads artifacts.
 
 ## Coverage
 
