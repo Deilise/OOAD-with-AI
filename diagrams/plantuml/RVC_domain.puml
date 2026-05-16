@@ -1,0 +1,92 @@
+@startuml RVC_domain
+!theme plain
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam classIconSize 0
+skinparam linetype polyline
+skinparam nodesep 28
+skinparam ranksep 32
+skinparam ArrowThickness 1
+skinparam directionStyle none
+
+title Roomba RVC — Domain model\n(names & attributes = SRS §3.2)
+
+skinparam class<<domain>> {
+  BackgroundColor #FFFFFF
+  BorderColor #3A6EA5
+}
+skinparam class<<external>> {
+  BackgroundColor #ECECEC
+  BorderColor #707070
+}
+skinparam package {
+  BackgroundColor #D4E8F8
+  BorderThickness 0
+  FontColor transparent
+}
+
+hide circle
+hide stereotype
+
+legend top left
+  |= |= |
+  | <#D4E8F8> | Inside software (SRS §3.2) |
+  | <#ECECEC> | Outside software |
+endlegend
+
+class "Home user / Scheduler" as User <<external>>
+class "Obstacle sensors\n(front, left, right)" as ObsHW <<external>>
+class "Dust sensor" as DustHW <<external>>
+class "Wheel motors\n(left, right)" as MotionHW <<external>>
+class "Cleaning hardware" as CleanHW <<external>>
+
+package " " as InsideSW {
+
+  class AutomaticCleaningSession <<domain>> {
+    sessionActive : Boolean
+    sessionSource : SessionSource
+  }
+
+  class ObstaclePerceptionContext <<domain>> {
+    frontObstacle : Boolean
+    leftObstacle : Boolean
+    rightObstacle : Boolean
+    lastUpdateTime : TimeStamp
+  }
+
+  class NavigationAndEscapeCoordinator <<domain>> {
+    motionState : MotionState
+    backupDistanceRemaining : Distance
+  }
+
+  class SurfaceCleaningController <<domain>> {
+    cleaningMode : CleaningMode
+    powerLevel : PowerLevel
+    dustSignal : DustSignal
+  }
+}
+
+User "0..*" -down- "1" AutomaticCleaningSession : StartSession /\nStopSession
+
+ObsHW "3" -down- "1" ObstaclePerceptionContext : ObstacleStateChanged
+
+DustHW "1" -down- "1" SurfaceCleaningController : DustSignalUpdated
+
+AutomaticCleaningSession "1" -right- "1" NavigationAndEscapeCoordinator : notifies session state
+AutomaticCleaningSession "1" -left- "1" SurfaceCleaningController : notifies session state
+
+ObstaclePerceptionContext "1" -down- "1" NavigationAndEscapeCoordinator : FusedObstacleSnapshot
+
+NavigationAndEscapeCoordinator "1" -down- "1" SurfaceCleaningController : SuspendCleaningForManeuver\nResumeCleaningAfterManeuver
+
+NavigationAndEscapeCoordinator "1" -down- "2" MotionHW : MotionCommand
+SurfaceCleaningController "1" -down- "1" CleanHW : CleaningCommand
+
+note bottom of ObstaclePerceptionContext
+  **FusedObstacleSnapshot** (message payload,
+  OBJ3-FR-3): derived from sectors;
+  includes surrounded, lateralOpening,
+  forwardSafe, turn viability (design)
+end note
+
+@enduml

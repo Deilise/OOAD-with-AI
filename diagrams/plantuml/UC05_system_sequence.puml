@@ -1,0 +1,74 @@
+@startuml UC05_system_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-05 — Escape when surrounded\n(system sequence diagram)
+
+actor "Home user\n(beneficiary)" as User
+participant "Obstacle sensor\nsubsystem" as Obs
+box "Roomba RVC control software\n(black box)" #E8F4FF
+  participant "System" as Sys
+end box
+participant "Drive motors /\nwheel subsystem" as Drv
+participant "Cleaning hardware" as Cln
+
+note over User, Sys : after UC-01
+
+alt [E2 sensor dropout during reverse]
+  Obs -> Sys : ObstacleStateChanged(dropoutDuringReverse)
+  note over Obs, Sys : next: UC-08
+else [typical or A1 or A2 or E1 or E3]
+  Obs -> Sys : ObstacleStateChanged(surrounded)
+  activate Sys
+  Sys -> Drv : MotionCommand(forbidForward)
+
+  alt [A2 intermittent surrounded flicker]
+    loop [until stable lateral opening or fallback]
+      Sys -> Drv : MotionCommand(reverse)
+      Obs -> Sys : ObstacleStateChanged(flickerFrame)
+      Obs -> Sys : ObstacleStateChanged(readingsDuringReverse)
+      Sys -> Drv : MotionCommand(continueReverse)
+    end
+  else [typical reverse segment]
+    Sys -> Drv : MotionCommand(reverse)
+    Obs -> Sys : ObstacleStateChanged(reverseReadings)
+    loop [until lateral opening or max backup]
+      Obs -> Sys : ObstacleStateChanged(reverseCycleSample)
+      Sys -> Drv : MotionCommand(continueReverse)
+    end
+    note right of Sys : forward-only clear does not end reverse while both sides closed
+  end
+
+  alt [typical lateral opening prefer right]
+    Obs -> Sys : ObstacleStateChanged(lateralOpening)
+    Sys -> Drv : MotionCommand(lateralEscapeRight)
+    Obs -> Sys : ObstacleStateChanged(forwardSafe)
+    Sys -> Drv : MotionCommand(forward)
+    Sys -> Cln : CleaningCommand(active)
+    deactivate Sys
+    note over Sys : next: UC-02
+  else [A1 prefer right blocked turn left]
+    Obs -> Sys : ObstacleStateChanged(lateralOpening)
+    Obs -> Sys : ObstacleStateChanged(rightInvalidForOpening)
+    Sys -> Drv : MotionCommand(lateralEscapeLeft)
+    Obs -> Sys : ObstacleStateChanged(forwardSafe)
+    Sys -> Drv : MotionCommand(forward)
+    Sys -> Cln : CleaningCommand(active)
+    deactivate Sys
+    note over Sys : next: UC-02
+  else [E1 max backup no lateral opening]
+    Obs -> Sys : ObstacleStateChanged(maxBackupNoLateralOpening)
+    Sys -> Drv : MotionCommand(fallbackTBD)
+    deactivate Sys
+  else [E3 residual symmetric trap]
+    Obs -> Sys : ObstacleStateChanged(noLateralOpeningWithinLimits)
+    deactivate Sys
+    note over Sys : global mitigations TBD
+  end
+end
+
+@enduml

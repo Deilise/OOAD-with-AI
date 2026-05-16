@@ -1,0 +1,41 @@
+@startuml UC08_system_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-08 — Handle missing / invalid / stale obstacle data\n(system sequence diagram)
+
+actor "Home user" as User
+participant "Obstacle sensor\nsubsystem" as Obs
+box "Roomba RVC control software\n(black box)" #E8F4FF
+  participant "System" as Sys
+end box
+participant "Drive motors /\nwheels" as Drv
+participant "Cleaning hardware" as Cln
+
+alt [typical full fault]
+  Obs -> Sys : ObstacleStateChanged(invalidOrStale)
+  activate Sys
+  Sys -> Drv : MotionCommand(stop)
+  Sys -> Cln : CleaningCommand(suspend)
+  deactivate Sys
+else [A1 partial staleness]
+  Obs -> Sys : ObstacleStateChanged(partialStale)
+  activate Sys
+  Sys -> Drv : MotionCommand(gradualOrPartialStopTBD)
+  deactivate Sys
+end
+
+alt [typical recovery]
+  Obs -> Sys : ObstacleStateChanged(recovered)
+  note over Sys : recovery before UC-02: TBD
+else [E1 never recovers]
+  note over User : user resets or moves robot
+  User -> Sys : requestServiceOrReset()
+  note over User, Sys : hardware / service TBD
+end
+
+@enduml

@@ -1,0 +1,74 @@
+name: C++ CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-simulate:
+    name: Build, Test, Simulate
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ gcovr
+
+      - name: Configure
+        run: |
+          cmake -S cpp -B cpp/build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DRVC_ENABLE_COVERAGE=ON
+
+      - name: Build tests and simulator
+        run: |
+          cmake --build cpp/build --target rvc_controller_tests
+          cmake --build cpp/build --target rvc_simulator
+
+      - name: Run GoogleTest suite
+        run: ctest --test-dir cpp/build --output-on-failure
+
+      - name: Run RVC simulator scenarios
+        run: ./cpp/build/rvc_simulator --verbose
+
+      - name: Generate coverage report
+        run: cmake --build cpp/build --target coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rvc-coverage-report
+          path: |
+            cpp/build/coverage/coverage.html
+            cpp/build/coverage/coverage.xml
+            cpp/build/coverage/*.html
+            cpp/build/coverage/*.css
+            cpp/build/coverage/*.js
+          if-no-files-found: warn
+
+      - name: Upload simulator binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: rvc-simulator-linux
+          path: cpp/build/rvc_simulator
+          if-no-files-found: error

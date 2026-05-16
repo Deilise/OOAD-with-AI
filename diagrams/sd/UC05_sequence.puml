@@ -1,0 +1,86 @@
+@startuml UC05_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-05 - Escape when surrounded\n(sequence diagram)
+
+actor "Home user\n(beneficiary)" as User
+participant "Obstacle sensors" as Obs
+box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
+  participant "perception:\nObstaclePerceptionContext" as Perception
+  participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
+  participant "cleaning:\nSurfaceCleaningController" as Clean
+end box
+participant "Wheel motors\n(left, right)" as Motors
+participant "Cleaning hardware" as CleanHW
+
+note over User, Clean : after UC-01
+
+alt [E2 sensor dropout during reverse]
+  Obs -> Perception : ObstacleStateChanged(dropoutDuringReverse)
+  Perception -> Nav : FusedObstacleSnapshot(invalid)
+  note over Perception, Nav : next: UC-08
+else [typical or A1 or A2 or E1 or E3]
+  Obs -> Perception : ObstacleStateChanged(surrounded)
+  Perception -> Nav : FusedObstacleSnapshot(surrounded)
+  Nav -> Motors : MotionCommand(forbidForward)
+
+  alt [A2 intermittent surrounded flicker]
+    loop [until stable lateral opening or fallback]
+      Nav -> Motors : MotionCommand(reverse)
+      Obs -> Perception : ObstacleStateChanged(flickerFrame)
+      Perception -> Nav : FusedObstacleSnapshot(reverseReadings)
+      Obs -> Perception : ObstacleStateChanged(readingsDuringReverse)
+      Perception -> Nav : FusedObstacleSnapshot(reverseReadings)
+      Nav -> Motors : MotionCommand(continueReverse)
+    end
+  else [typical reverse segment]
+    Nav -> Motors : MotionCommand(reverse)
+    Obs -> Perception : ObstacleStateChanged(reverseReadings)
+    Perception -> Nav : FusedObstacleSnapshot(reverseReadings)
+    loop [until lateral opening or max backup]
+      Obs -> Perception : ObstacleStateChanged(reverseCycleSample)
+      Perception -> Nav : FusedObstacleSnapshot(reverseCycleSample)
+      Nav -> Motors : MotionCommand(continueReverse)
+    end
+    note right of Nav : forward-only clear does not end reverse while both sides closed
+  end
+
+  alt [typical lateral opening prefer right]
+    Obs -> Perception : ObstacleStateChanged(lateralOpening)
+    Perception -> Nav : FusedObstacleSnapshot(rightTurnViable)
+    Nav -> Motors : MotionCommand(lateralEscapeRight)
+    Obs -> Perception : ObstacleStateChanged(forwardSafe)
+    Perception -> Nav : FusedObstacleSnapshot(forwardSafe)
+    Nav -> Motors : MotionCommand(forward)
+    Nav -> Clean : ResumeCleaningAfterManeuver()
+    Clean -> CleanHW : CleaningCommand(active)
+    note over Nav, Motors : next: UC-02
+  else [A1 prefer right blocked turn left]
+    Obs -> Perception : ObstacleStateChanged(lateralOpening)
+    Perception -> Nav : FusedObstacleSnapshot(lateralOpening)
+    Obs -> Perception : ObstacleStateChanged(rightInvalidForOpening)
+    Perception -> Nav : FusedObstacleSnapshot(leftTurnViable)
+    Nav -> Motors : MotionCommand(lateralEscapeLeft)
+    Obs -> Perception : ObstacleStateChanged(forwardSafe)
+    Perception -> Nav : FusedObstacleSnapshot(forwardSafe)
+    Nav -> Motors : MotionCommand(forward)
+    Nav -> Clean : ResumeCleaningAfterManeuver()
+    Clean -> CleanHW : CleaningCommand(active)
+    note over Nav, Motors : next: UC-02
+  else [E1 max backup no lateral opening]
+    Obs -> Perception : ObstacleStateChanged(maxBackupNoLateralOpening)
+    Perception -> Nav : FusedObstacleSnapshot(noLateralOpening)
+    Nav -> Motors : MotionCommand(fallbackTBD)
+  else [E3 residual symmetric trap]
+    Obs -> Perception : ObstacleStateChanged(noLateralOpeningWithinLimits)
+    Perception -> Nav : FusedObstacleSnapshot(noLateralOpening)
+    note over Nav : global mitigations TBD
+  end
+end
+
+@enduml

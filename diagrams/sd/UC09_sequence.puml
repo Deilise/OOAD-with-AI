@@ -1,0 +1,31 @@
+@startuml UC09_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-09 - Build consistent fused obstacle picture\n(sequence diagram)
+
+participant "Obstacle sensors" as Obs
+box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
+  participant "perception:\nObstaclePerceptionContext" as Perception
+  participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
+end box
+
+alt [typical]
+  Obs -> Perception : ObstacleStateChanged(rawUpdates)
+  Perception -> Nav : FusedObstacleSnapshot(consistencyApplied)
+  note over Nav : feeds UC-02 .. UC-05
+else [A1 asynchronous updates]
+  Obs -> Perception : ObstacleStateChanged(frontUpdate)
+  Obs -> Perception : ObstacleStateChanged(sideUpdate)
+  Perception -> Nav : FusedObstacleSnapshot(alignedSnapshotTBD)
+else [E1 fusion incoherent]
+  Obs -> Perception : ObstacleStateChanged(rawUpdates)
+  Perception -> Nav : FusedObstacleSnapshot(incoherent)
+  note over Perception, Nav : next: UC-08
+end
+
+@enduml

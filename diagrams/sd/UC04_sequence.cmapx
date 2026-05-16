@@ -1,0 +1,6 @@
+<map id="UC04_sequence_map" name="UC04_sequence_map">
+<area shape="rect" id="id1" href="A1" title="A1" alt="" coords="127,579,256,592"/>
+<area shape="rect" id="id2" href="typical" title="typical" alt="" coords="201,347,343,361"/>
+<area shape="rect" id="id3" href="E1" title="E1" alt="" coords="127,660,275,673"/>
+<area shape="rect" id="id4" href="debounce" title="debounce" alt="" coords="223,683,379,696"/>
+</map>

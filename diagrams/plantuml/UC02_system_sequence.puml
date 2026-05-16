@@ -1,0 +1,44 @@
+@startuml UC02_system_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-02 — Cruise forward while cleaning\n(system sequence diagram)
+
+actor "Home user\n(beneficiary)" as User
+participant "Obstacle sensor\nsubsystem" as Obs
+participant "Dust / debris\nsensor" as Dust
+box "Roomba RVC control software\n(black box)" #E8F4FF
+  participant "System" as Sys
+end box
+participant "Drive motors /\nwheels" as Drv
+participant "Cleaning hardware\n(vacuum, brushes, mop)" as Cln
+
+note over User, Sys : after UC-01
+
+loop [cruise cycle until stop or other UC]
+  alt [typical]
+    Obs -> Sys : ObstacleStateChanged(frame)
+    activate Sys
+    Sys -> Drv : MotionCommand(forward)
+    Sys -> Cln : CleaningCommand(normal)
+    deactivate Sys
+  else [A1 dust boost concurrent]
+    Obs -> Sys : ObstacleStateChanged(frame)
+    activate Sys
+    Sys -> Drv : MotionCommand(forward)
+    Dust -> Sys : DustSignalUpdated(aboveThreshold)
+    Sys -> Cln : CleaningCommand(boost)
+    deactivate Sys
+  else [E1 stale or missing obstacle data]
+    Obs -> Sys : ObstacleStateChanged(invalidOrStale)
+    note over Obs, Sys : next: UC-08
+  end
+end
+
+note over Obs, Cln : repeat until UC-03, UC-04, UC-05, or stop
+
+@enduml

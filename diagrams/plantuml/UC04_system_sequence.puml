@@ -1,0 +1,44 @@
+@startuml UC04_system_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-04 — Avoid obstacle when right turn blocked\n(system sequence diagram)
+
+actor "Home user\n(beneficiary)" as User
+participant "Obstacle sensor\nsubsystem" as Obs
+box "Roomba RVC control software\n(black box)" #E8F4FF
+  participant "System" as Sys
+end box
+participant "Drive motors /\nwheels" as Drv
+participant "Cleaning hardware" as Cln
+
+note over User, Sys : after UC-01; right not valid, left viable
+
+Obs -> Sys : ObstacleStateChanged(forwardBlocked, rightBlocked)
+activate Sys
+Sys -> Cln : CleaningCommand(suspend)
+
+alt [typical right not valid turn left]
+  Sys -> Drv : MotionCommand(turnLeft)
+  Obs -> Sys : ObstacleStateChanged(forwardSafe)
+  Sys -> Drv : MotionCommand(forward)
+  Sys -> Cln : CleaningCommand(active)
+  deactivate Sys
+  note over Sys : next: UC-02
+else [A1 neither lateral viable]
+  Sys -> Drv : MotionCommand(probeOrBackupTBD)
+  deactivate Sys
+  note over Obs, Drv : may trend toward UC-05 (TBD)
+else [E1 oscillation left and right]
+  loop [debounce and maneuver limits TBD]
+    Obs -> Sys : ObstacleStateChanged(oscillatingLateralReadings)
+    Sys -> Drv : MotionCommand(suppressMotionTBD)
+  end
+  deactivate Sys
+end
+
+@enduml

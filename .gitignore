@@ -1,0 +1,29 @@
+# CMake build outputs
+build/
+build-*/
+cpp/build/
+cpp/build-*/
+
+# Compiled binaries and libraries
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.o
+*.obj
+
+# Coverage outputs
+*.gcda
+*.gcno
+*.gcov
+coverage/
+coverage.xml
+coverage.html
+
+# Editor and OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

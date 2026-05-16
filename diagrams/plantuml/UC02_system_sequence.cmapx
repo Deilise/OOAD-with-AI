@@ -1,0 +1,6 @@
+<map id="UC02_system_sequence_map" name="UC02_system_sequence_map">
+<area shape="rect" id="id1" href="typical" title="typical" alt="" coords="184,253,225,266"/>
+<area shape="rect" id="id2" href="A1" title="A1" alt="" coords="110,359,246,372"/>
+<area shape="rect" id="id3" href="cruise" title="cruise" alt="" coords="186,228,354,241"/>
+<area shape="rect" id="id4" href="E1" title="E1" alt="" coords="110,494,295,507"/>
+</map>

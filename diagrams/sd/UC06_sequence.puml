@@ -1,0 +1,41 @@
+@startuml UC06_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-06 - Boost cleaning when dust is high\n(sequence diagram)
+
+actor "Home user\n(beneficiary)" as User
+participant "Dust sensor" as Dust
+box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
+  participant "cleaning:\nSurfaceCleaningController" as Clean
+end box
+participant "Cleaning hardware" as CleanHW
+
+note over User, Clean : after UC-01
+
+alt [typical]
+  Dust -> Clean : DustSignalUpdated(aboveThreshold)
+  activate Clean
+  Clean -> CleanHW : CleaningCommand(boost)
+  Clean -> CleanHW : CleaningCommand(normal)
+  deactivate Clean
+  note over Clean : may overlap UC-02
+else [A1 boost during suspended cleaning]
+  Dust -> Clean : DustSignalUpdated(aboveThreshold)
+  activate Clean
+  Clean -> CleanHW : CleaningCommand(unchangedOrDeferredTBD)
+  deactivate Clean
+  note over Clean : cleaning suspended under UC-03 or UC-05
+else [E1 invalid dust signal]
+  Dust -> Clean : DustSignalUpdated(invalid)
+  activate Clean
+  Clean -> CleanHW : CleaningCommand(normal)
+  deactivate Clean
+  note over Dust, CleanHW : no boost; branch UC-08 if needed (TBD)
+end
+
+@enduml

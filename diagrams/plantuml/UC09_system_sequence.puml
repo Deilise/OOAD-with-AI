@@ -1,0 +1,28 @@
+@startuml UC09_system_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-09 — Build consistent fused obstacle picture\n(system sequence diagram)
+
+participant "Obstacle sensor\nsubsystem" as Obs
+box "Roomba RVC control software\n(black box)" #E8F4FF
+  participant "System" as Sys
+end box
+
+alt [typical]
+  Obs -> Sys : ObstacleStateChanged(rawUpdates)
+  note over Sys : feeds UC-02 .. UC-05
+else [A1 asynchronous updates]
+  Obs -> Sys : ObstacleStateChanged(frontUpdate)
+  Obs -> Sys : ObstacleStateChanged(sideUpdate)
+  note over Obs, Sys : snapshot alignment TBD
+else [E1 fusion incoherent]
+  Obs -> Sys : ObstacleStateChanged(rawUpdates)
+  note over Obs, Sys : next: UC-08
+end
+
+@enduml
