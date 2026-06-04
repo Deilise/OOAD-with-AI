@@ -1,6 +1,6 @@
 # Roomba RVC Software Controller C++ Skeleton
 
-This directory contains a C++17 skeleton generated from the SSDs, SDs, and class diagram.
+This directory contains a C++17 skeleton generated from the SSDs, SDs, and class diagram. It is aligned with the v0.6.0 design where the RVC has direct front/left obstacle sensing and infers right-side status through a high-level right-side probe.
 
 ## Structure
 
@@ -41,8 +41,10 @@ g++ -std=c++17 -I include examples/demo.cpp src/AutomaticCleaningSession.cpp src
 
 ## Simulator
 
-The simulator is a CLI executable that drives the controller through 30 scripted scenarios. It reports pass/fail for each scenario and includes a required reverse-to-turning case:
+The simulator is a CLI executable that drives the controller through 30 scripted scenarios. It reports pass/fail for each scenario and includes right-side probe and required reverse-to-turning cases:
 
+- `TC-12`: forward blocked, right-side probe clear, then turn right
+- `TC-13`: forward blocked, right-side probe blocked, then turn left
 - `TC-28`: going back then turning right (`reverse` before `lateralEscapeRight`)
 - `TC-29`: going back then turning left (`reverse` before `lateralEscapeLeft`)
 
@@ -82,6 +84,12 @@ From the repository root:
 cmake -S cpp -B cpp/build
 cmake --build cpp/build
 ctest --test-dir cpp/build --output-on-failure
+```
+
+For more human-readable GoogleTest output with colored pass/fail lines, run:
+
+```cmd
+cpp\run-tests.bat
 ```
 
 Or run the test executable directly:
@@ -158,7 +166,9 @@ The class and operation names intentionally keep the PlantUML naming style:
 - `ObstaclePerceptionContext`
 - `NavigationAndEscapeCoordinator`
 - `SurfaceCleaningController`
-- `StartSession(...)`, `StopSession()`, `ObstacleStateChanged(...)`, `FusedObstacleSnapshot(...)`, `DustSignalUpdated(...)`
+- `StartSession(...)`, `StopSession()`, `ObstacleStateChanged(...)`, `RequestRightSideProbe(...)`, `FusedObstacleSnapshot(...)`, `DustSignalUpdated(...)`
 - `MotionCommand(...)` and `CleaningCommand(...)` on external sink interfaces
+
+The code does not model a direct right-side obstacle sensor. `ObstaclePerceptionContext` stores `rightObstacleInferred` and `rightProbeStatus`; `ObstacleEvent` can carry `probePose=right` plus the front-sensor result observed in that probe pose. `NavigationAndEscapeCoordinator` treats the probe as a separate maneuver (`probeRightSide`, then `restoreHeading` or `restoreEscapeHeading`) before issuing the final turn or reverse command.
 
 Policy marked `TBD` in the diagrams/SRS is represented with corresponding `*TBD` enum values and conservative placeholder handling.

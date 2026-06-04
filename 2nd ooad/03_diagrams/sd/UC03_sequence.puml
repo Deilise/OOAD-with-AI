@@ -1,0 +1,81 @@
+@startuml UC03_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-03 - Avoid obstacle (forward blocked, not surrounded)\n(sequence diagram)
+
+actor "Home user\n(beneficiary)" as User
+participant "Direct front / left\nobstacle sensors" as Obs
+box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
+  participant "perception:\nObstaclePerceptionContext" as Perception
+  participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
+  participant "cleaning:\nSurfaceCleaningController" as Clean
+end box
+participant "Wheel motors\n(left, right)" as Motors
+participant "Cleaning hardware" as CleanHW
+
+note over User, Clean : after UC-01; right side is inferred by probe
+
+alt [E1 probe / sensor ambiguity]
+  Obs -> Perception : ObstacleStateChanged(front=blocked, left=unknown)
+  Perception -> Nav : RequestRightSideProbe(reason=classifyObstacle)
+  Nav -> Motors : MotionCommand(action=probeRightSide)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, front=invalid)
+  Perception -> Nav : FusedObstacleSnapshot(ambiguous)
+  note over Perception, Nav : next: UC-05 or UC-08 (TBD)
+else [typical or A1 or A2]
+  alt [A2 multiple adjustments]
+    loop [forward clears then re-blocks]
+      Obs -> Perception : ObstacleStateChanged(front=blocked, left=clear)
+      Perception -> Nav : RequestRightSideProbe(reason=rightTurnViability)
+      Nav -> Clean : SuspendCleaningForManeuver()
+      Clean -> CleanHW : CleaningCommand(suspend)
+      Nav -> Motors : MotionCommand(action=probeRightSide)
+      alt [typical prefer right after probe]
+        Obs -> Perception : ObstacleStateChanged(probePose=right, front=clear)
+        Perception -> Nav : FusedObstacleSnapshot(forwardBlocked, notSurrounded, rightTurnViable)
+        Nav -> Motors : MotionCommand(action=restoreHeading)
+        Nav -> Motors : MotionCommand(turnRight)
+      else [A1 probed right not viable]
+        Obs -> Perception : ObstacleStateChanged(probePose=right, front=blocked)
+        Perception -> Nav : FusedObstacleSnapshot(forwardBlocked, notSurrounded, leftTurnViable)
+        Nav -> Motors : MotionCommand(action=restoreHeading)
+        Nav -> Motors : MotionCommand(turnLeft)
+      end
+      Obs -> Perception : ObstacleStateChanged(front=safe, left=current)
+      Perception -> Nav : FusedObstacleSnapshot(forwardSafe)
+      Nav -> Motors : MotionCommand(forward)
+      Nav -> Clean : ResumeCleaningAfterManeuver()
+      Clean -> CleanHW : CleaningCommand(active)
+    end
+  else [single maneuver]
+    Obs -> Perception : ObstacleStateChanged(front=blocked, left=current)
+    Perception -> Nav : RequestRightSideProbe(reason=rightTurnViability)
+    Nav -> Clean : SuspendCleaningForManeuver()
+    Clean -> CleanHW : CleaningCommand(suspend)
+    Nav -> Motors : MotionCommand(action=probeRightSide)
+    alt [typical prefer right after probe]
+      Obs -> Perception : ObstacleStateChanged(probePose=right, front=clear)
+      Perception -> Nav : FusedObstacleSnapshot(forwardBlocked, notSurrounded, rightTurnViable)
+      Nav -> Motors : MotionCommand(action=restoreHeading)
+      Nav -> Motors : MotionCommand(turnRight)
+    else [A1 probed right not viable]
+      Obs -> Perception : ObstacleStateChanged(probePose=right, front=blocked)
+      Perception -> Nav : FusedObstacleSnapshot(forwardBlocked, notSurrounded, leftTurnViable)
+      Nav -> Motors : MotionCommand(action=restoreHeading)
+      Nav -> Motors : MotionCommand(turnLeft)
+    end
+    Obs -> Perception : ObstacleStateChanged(front=safe, left=current)
+    Perception -> Nav : FusedObstacleSnapshot(forwardSafe)
+    Nav -> Motors : MotionCommand(forward)
+    Nav -> Clean : ResumeCleaningAfterManeuver()
+    Clean -> CleanHW : CleaningCommand(active)
+  end
+  note over Nav, Motors : next: UC-02
+end
+
+@enduml

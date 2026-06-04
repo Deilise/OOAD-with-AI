@@ -1,0 +1,41 @@
+@startuml UC09_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-09 - Build consistent fused obstacle picture\n(sequence diagram)
+
+participant "Direct front / left\nobstacle sensors" as Obs
+box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
+  participant "perception:\nObstaclePerceptionContext" as Perception
+  participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
+end box
+participant "Wheel motors\n(left, right)" as Motors
+
+alt [typical]
+  Obs -> Perception : ObstacleStateChanged(front=sample, left=sample)
+  Perception -> Nav : RequestRightSideProbe(reason=rightStatusNeeded)
+  Nav -> Motors : MotionCommand(action=probeRightSide)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, front=sample)
+  Perception -> Nav : FusedObstacleSnapshot(consistencyApplied)
+  Nav -> Motors : MotionCommand(action=restoreHeading)
+  note over Nav : feeds UC-02 .. UC-05
+else [A1 asynchronous updates]
+  Obs -> Perception : ObstacleStateChanged(front=updated)
+  Obs -> Perception : ObstacleStateChanged(left=updated)
+  Perception -> Nav : RequestRightSideProbe(reason=alignRightProbe)
+  Nav -> Motors : MotionCommand(action=probeRightSide)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, front=updated)
+  Perception -> Nav : FusedObstacleSnapshot(alignedSnapshotTBD)
+  Nav -> Motors : MotionCommand(action=restoreHeading)
+else [E1 fusion/probe incoherent]
+  Obs -> Perception : ObstacleStateChanged(frontOrLeft=current)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, front=invalid)
+  Perception -> Nav : FusedObstacleSnapshot(incoherent)
+  note over Perception, Nav : next: UC-08
+end
+
+@enduml

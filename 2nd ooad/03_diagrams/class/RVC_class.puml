@@ -1,0 +1,279 @@
+@startuml RVC_class
+!theme plain
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam classIconSize 0
+skinparam linetype polyline
+skinparam nodesep 40
+skinparam ranksep 45
+
+title Roomba RVC — Class diagram\n(SRS/SD v0.6.0: right side inferred by probe)
+
+package "Roomba RVC control software" #E8F4FF {
+
+  class RvcSoftwareController {
+    + initialize() : void
+  }
+
+  class AutomaticCleaningSession {
+    - sessionActive : Boolean
+    - sessionSource : SessionSource
+    --
+    + StartSession(source : SessionSource) : void
+    + StopSession() : void
+    + ResumeSession(source : SessionSource) : void
+    + requestServiceOrReset() : void
+  }
+
+  class ObstaclePerceptionContext {
+    - frontObstacle : Boolean
+    - leftObstacle : Boolean
+    - rightObstacleInferred : Boolean
+    - rightProbeStatus : ProbeStatus
+    - lastUpdateTime : TimeStamp
+    --
+    + ObstacleStateChanged(event : ObstacleEvent) : FusedObstacleSnapshot
+  }
+
+  class NavigationAndEscapeCoordinator {
+    - motionState : MotionState
+    - backupDistanceRemaining : Distance
+    --
+    + SessionStateChanged(active : Boolean) : void
+    + RequestRightSideProbe(reason : ProbeReason) : void
+    + FusedObstacleSnapshot(snapshot : FusedObstacleSnapshot) : void
+  }
+
+  class SurfaceCleaningController {
+    - cleaningMode : CleaningMode
+    - powerLevel : PowerLevel
+    - dustSignal : DustSignal
+    --
+    + SessionStateChanged(active : Boolean) : void
+    + DustSignalUpdated(signal : DustSignal) : void
+    + SuspendCleaningForManeuver() : void
+    + ResumeCleaningAfterManeuver() : void
+  }
+
+  class FusedObstacleSnapshot <<value>> {
+    + kind : FusedObstacleSnapshotKind
+    + forwardBlocked : Boolean
+    + surrounded : Boolean
+    + lateralOpening : Boolean
+    + forwardSafe : Boolean
+    + rightTurnViable : Boolean
+    + leftTurnViable : Boolean
+    + valid : Boolean
+  }
+
+  class ObstacleEvent <<value>> {
+    + kind : ObstacleEventKind
+    + probePose : ProbePose
+    + sampleTime : TimeStamp
+  }
+
+  enum SessionSource {
+    User
+    Scheduler
+    Remote
+    TBD
+  }
+
+  enum MotionState {
+    ForwardCruise
+    Avoiding
+    RightSideProbing
+    Reversing
+    Turning
+    Stopped
+    TBD
+  }
+
+  enum CleaningMode {
+    Active
+    Suspended
+    Boosted
+    TBD
+  }
+
+  enum PowerLevel {
+    Normal
+    Boost
+    Off
+    TBD
+  }
+
+  enum MotionCommand {
+    forward
+    turnRight
+    turnLeft
+    reverse
+    continueReverse
+    probeRightSide
+    restoreHeading
+    restoreEscapeHeading
+    lateralEscapeRight
+    lateralEscapeLeft
+    forbidForward
+    stop
+    fallbackTBD
+    fallbackOrEscalateTBD
+    stopOrFallbackTBD
+    gradualOrPartialStopTBD
+    suppressMotionTBD
+  }
+
+  enum CleaningCommand {
+    normal
+    boost
+    active
+    suspend
+    unchangedOrDeferredTBD
+  }
+
+  enum ObstacleEventKind {
+    frontLeftSample
+    probePoseRightSample
+    forwardBlocked
+    forwardSafe
+    forwardSafeAfterManeuver
+    surrounded
+    leftOpening
+    lateralOpening
+    noLateralOpening
+    reverseReadings
+    reverseCycleSample
+    noLateralOpeningWithinLimits
+    invalidOrTimeout
+    invalidOrStale
+    partialStale
+    recovered
+    ambiguous
+    dropoutDuringReverse
+    TBD
+  }
+
+  enum FusedObstacleSnapshotKind {
+    forwardSafe
+    forwardBlocked
+    notSurrounded
+    surrounded
+    invalid
+    valid
+    ambiguous
+    partialStale
+    snapshot
+    reverseReadings
+    reverseCycleSample
+    lateralOpening
+    rightTurnViable
+    rightTurnInvalid
+    leftTurnViable
+    noLateralTurnViable
+    noLateralOpening
+    unstable
+    consistencyApplied
+    alignedSnapshotTBD
+    incoherent
+    TBD
+  }
+
+  class TimeStamp <<type>>
+  class Distance <<type>>
+  enum ProbeStatus {
+    Pending
+    Valid
+    Invalid
+    Stale
+    Timeout
+    TBD
+  }
+  enum ProbeReason {
+    classifyObstacle
+    rightTurnViability
+    surroundedCheck
+    lateralOpeningCheck
+    rightStatusNeeded
+    alignRightProbe
+    TBD
+  }
+  enum ProbePose {
+    none
+    right
+    TBD
+  }
+  enum DustSignal {
+    aboveThreshold
+    invalid
+    normal
+    TBD
+  }
+}
+
+package "External interfaces" #F5F5F5 {
+  interface SessionIntentPort {
+    StartSession(source)
+    StopSession()
+    ResumeSession(source)
+    requestServiceOrReset()
+  }
+
+  interface ObstacleInputPort {
+    ObstacleStateChanged(event)
+  }
+
+  interface DustInputPort {
+    DustSignalUpdated(signal)
+  }
+
+  interface MotionCommandSink {
+    MotionCommand(command)
+  }
+
+  interface CleaningCommandSink {
+    CleaningCommand(command)
+  }
+}
+
+RvcSoftwareController "1" *-- "1" AutomaticCleaningSession : owns
+RvcSoftwareController "1" *-- "1" ObstaclePerceptionContext : owns
+RvcSoftwareController "1" *-- "1" NavigationAndEscapeCoordinator : owns
+RvcSoftwareController "1" *-- "1" SurfaceCleaningController : owns
+
+AutomaticCleaningSession ..|> SessionIntentPort
+ObstaclePerceptionContext ..|> ObstacleInputPort
+SurfaceCleaningController ..|> DustInputPort
+
+AutomaticCleaningSession "1" --> "1" NavigationAndEscapeCoordinator : notifies session state
+AutomaticCleaningSession "1" --> "1" SurfaceCleaningController : notifies session state
+
+ObstaclePerceptionContext "1" --> "1" NavigationAndEscapeCoordinator : sends snapshot /\nrequests right-side probe
+ObstaclePerceptionContext ..> FusedObstacleSnapshot : creates
+ObstaclePerceptionContext ..> ObstacleEvent : consumes
+FusedObstacleSnapshot ..> FusedObstacleSnapshotKind : type
+
+NavigationAndEscapeCoordinator "1" --> "1" SurfaceCleaningController : suspend / resume
+NavigationAndEscapeCoordinator "1" --> "1" MotionCommandSink : sends command
+SurfaceCleaningController "1" --> "1" CleaningCommandSink : sends command
+
+AutomaticCleaningSession ..> SessionSource : type
+NavigationAndEscapeCoordinator ..> MotionState : type
+SurfaceCleaningController ..> CleaningMode : type
+SurfaceCleaningController ..> PowerLevel : type
+SurfaceCleaningController ..> DustSignal : type
+NavigationAndEscapeCoordinator ..> Distance : type
+NavigationAndEscapeCoordinator ..> ProbeReason : type
+ObstaclePerceptionContext ..> TimeStamp : type
+ObstaclePerceptionContext ..> ProbeStatus : type
+ObstacleEvent ..> ProbePose : type
+
+legend bottom left
+  *--  composition: controller owns internal objects
+  ..|> realization: class provides an input port
+  -->  association: object keeps/calls collaborator or sink
+  ..>  dependency: temporary value/message type use
+  --|> inheritance: not used; no superclass is defined by SRS/SDs
+  o--  aggregation: not used; no shared ownership is defined
+endlegend
+
+@enduml

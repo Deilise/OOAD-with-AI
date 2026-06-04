@@ -1,0 +1,69 @@
+@startuml UC03_system_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-03 — Avoid obstacle (forward blocked, not surrounded)\n(system sequence diagram)
+
+actor "Home user\n(beneficiary)" as User
+participant "Direct front / left\nobstacle sensors" as Obs
+box "Roomba RVC control software\n(black box)" #E8F4FF
+  participant "System" as Sys
+end box
+participant "Drive motors /\nwheels" as Drv
+participant "Cleaning hardware" as Cln
+
+note over User, Sys : after UC-01
+
+alt [E1 probe / sensor ambiguity]
+  Obs -> Sys : ObstacleStateChanged(front=blocked, left=unknown)
+  Sys -> Drv : MotionCommand(action=probeRightSide)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, front=invalid)
+  note over Obs, Sys : next: UC-05 or UC-08 (TBD)
+else [typical or A1 or A2]
+  alt [A2 multiple adjustments]
+    loop [forward clears then re-blocks]
+      Obs -> Sys : ObstacleStateChanged(front=blocked, left=clear)
+      activate Sys
+      Sys -> Cln : CleaningCommand(suspend)
+      Sys -> Drv : MotionCommand(action=probeRightSide)
+      alt [typical prefer right after probe]
+        Obs -> Sys : ObstacleStateChanged(probePose=right, front=clear)
+        Sys -> Drv : MotionCommand(action=restoreHeading)
+        Sys -> Drv : MotionCommand(turnRight)
+      else [A1 probed right not viable]
+        Obs -> Sys : ObstacleStateChanged(probePose=right, front=blocked)
+        Sys -> Drv : MotionCommand(action=restoreHeading)
+        Sys -> Drv : MotionCommand(turnLeft)
+      end
+      Obs -> Sys : ObstacleStateChanged(front=safe, left=current)
+      Sys -> Drv : MotionCommand(forward)
+      Sys -> Cln : CleaningCommand(active)
+      deactivate Sys
+    end
+  else [single maneuver]
+    Obs -> Sys : ObstacleStateChanged(front=blocked, left=current)
+    activate Sys
+    Sys -> Cln : CleaningCommand(suspend)
+    Sys -> Drv : MotionCommand(action=probeRightSide)
+    alt [typical prefer right after probe]
+      Obs -> Sys : ObstacleStateChanged(probePose=right, front=clear)
+      Sys -> Drv : MotionCommand(action=restoreHeading)
+      Sys -> Drv : MotionCommand(turnRight)
+    else [A1 probed right not viable]
+      Obs -> Sys : ObstacleStateChanged(probePose=right, front=blocked)
+      Sys -> Drv : MotionCommand(action=restoreHeading)
+      Sys -> Drv : MotionCommand(turnLeft)
+    end
+    Obs -> Sys : ObstacleStateChanged(front=safe, left=current)
+    Sys -> Drv : MotionCommand(forward)
+    Sys -> Cln : CleaningCommand(active)
+    deactivate Sys
+  end
+  note over Sys : next: UC-02
+end
+
+@enduml

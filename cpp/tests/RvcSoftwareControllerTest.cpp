@@ -33,7 +33,8 @@ TEST(RvcSoftwareControllerTest, PortAccessorsExposeUsableInputPorts) {
     RvcSoftwareControllerFixture fixture;
 
     fixture.controller.sessionIntentPort().StartSession(rvc::SessionSource::User);
-    fixture.controller.obstacleInputPort().ObstacleStateChanged({rvc::ObstacleEventKind::frame, 1});
+    fixture.controller.obstacleInputPort().ObstacleStateChanged(
+        {rvc::ObstacleEventKind::forwardSafe, rvc::ProbePose::none, 1});
     fixture.controller.dustInputPort().DustSignalUpdated(rvc::DustSignal::aboveThreshold);
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
@@ -50,10 +51,12 @@ TEST(RvcSoftwareControllerTest, DomainObjectAccessorsExposeOwnedObjects) {
     RvcSoftwareControllerFixture fixture;
 
     fixture.controller.session().StartSession(rvc::SessionSource::User);
-    fixture.controller.perception().ObstacleStateChanged({rvc::ObstacleEventKind::surrounded, 2});
+    fixture.controller.perception().ObstacleStateChanged(
+        {rvc::ObstacleEventKind::surrounded, rvc::ProbePose::right, 2});
     fixture.controller.cleaning().DustSignalUpdated(rvc::DustSignal::invalid);
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
+                                               rvc::MotionCommand::restoreHeading,
                                                rvc::MotionCommand::forbidForward,
                                                rvc::MotionCommand::reverse,
                                            }));

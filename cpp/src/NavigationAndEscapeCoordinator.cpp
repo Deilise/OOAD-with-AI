@@ -20,6 +20,19 @@ void NavigationAndEscapeCoordinator::SessionStateChanged(bool active) {
     send(MotionCommand::stop);
 }
 
+void NavigationAndEscapeCoordinator::RequestRightSideProbe(ProbeReason reason) {
+    if (!sessionActive_) {
+        send(MotionCommand::suppressMotionTBD);
+        return;
+    }
+
+    motionState_ = MotionState::RightSideProbing;
+    if (reason == ProbeReason::rightTurnViability) {
+        cleaning_.SuspendCleaningForManeuver();
+    }
+    send(MotionCommand::probeRightSide);
+}
+
 void NavigationAndEscapeCoordinator::FusedObstacleSnapshot(const rvc::FusedObstacleSnapshot& snapshot) {
     if (!sessionActive_) {
         send(MotionCommand::suppressMotionTBD);
@@ -42,6 +55,15 @@ void NavigationAndEscapeCoordinator::FusedObstacleSnapshot(const rvc::FusedObsta
 
     if (snapshot.kind == FusedObstacleSnapshotKind::unstable) {
         send(MotionCommand::suppressMotionTBD);
+        return;
+    }
+
+    if (snapshot.forwardBlocked &&
+        (snapshot.kind == FusedObstacleSnapshotKind::rightTurnViable ||
+         snapshot.kind == FusedObstacleSnapshotKind::leftTurnViable ||
+         snapshot.kind == FusedObstacleSnapshotKind::rightTurnInvalid ||
+         snapshot.kind == FusedObstacleSnapshotKind::noLateralTurnViable)) {
+        handleForwardBlocked(snapshot);
         return;
     }
 
@@ -68,7 +90,7 @@ void NavigationAndEscapeCoordinator::FusedObstacleSnapshot(const rvc::FusedObsta
         return;
     }
 
-    send(MotionCommand::probeOrBackupTBD);
+    send(MotionCommand::fallbackOrEscalateTBD);
 }
 
 void NavigationAndEscapeCoordinator::send(MotionCommand command) {
@@ -83,7 +105,7 @@ void NavigationAndEscapeCoordinator::handleInvalidOrStale(const rvc::FusedObstac
         return;
     }
 
-    send(MotionCommand::stop);
+    send(snapshot.forwardBlocked ? MotionCommand::stopOrFallbackTBD : MotionCommand::stop);
     cleaning_.SuspendCleaningForManeuver();
 }
 
@@ -91,15 +113,17 @@ void NavigationAndEscapeCoordinator::handleSurrounded(const rvc::FusedObstacleSn
     if (snapshot.kind == FusedObstacleSnapshotKind::surrounded) {
         motionState_ = MotionState::Reversing;
         backupDistanceRemaining_ = 1.0;
+        send(MotionCommand::restoreHeading);
         send(MotionCommand::forbidForward);
-        send(MotionCommand::reverse);
         cleaning_.SuspendCleaningForManeuver();
+        send(MotionCommand::reverse);
         return;
     }
 
     if (snapshot.kind == FusedObstacleSnapshotKind::reverseReadings ||
         snapshot.kind == FusedObstacleSnapshotKind::reverseCycleSample) {
         motionState_ = MotionState::Reversing;
+        send(MotionCommand::restoreEscapeHeading);
         send(MotionCommand::continueReverse);
         return;
     }
@@ -121,21 +145,24 @@ void NavigationAndEscapeCoordinator::handleSurrounded(const rvc::FusedObstacleSn
         return;
     }
 
-    send(MotionCommand::probeOrBackupTBD);
+    send(MotionCommand::fallbackOrEscalateTBD);
 }
 
 void NavigationAndEscapeCoordinator::handleForwardBlocked(const rvc::FusedObstacleSnapshot& snapshot) {
     motionState_ = MotionState::Avoiding;
-    cleaning_.SuspendCleaningForManeuver();
 
-    if (snapshot.kind == FusedObstacleSnapshotKind::rightTurnInvalid) {
+    if (snapshot.kind == FusedObstacleSnapshotKind::rightTurnInvalid && snapshot.leftTurnViable) {
+        send(MotionCommand::restoreHeading);
         send(MotionCommand::turnLeft);
     } else if (snapshot.rightTurnViable) {
+        send(MotionCommand::restoreHeading);
         send(MotionCommand::turnRight);
     } else if (snapshot.leftTurnViable) {
+        send(MotionCommand::restoreHeading);
         send(MotionCommand::turnLeft);
     } else {
-        send(MotionCommand::probeOrBackupTBD);
+        send(MotionCommand::restoreHeading);
+        send(MotionCommand::fallbackOrEscalateTBD);
     }
 }
 

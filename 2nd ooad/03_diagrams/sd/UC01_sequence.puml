@@ -1,0 +1,51 @@
+@startuml UC01_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-01 — Start automatic cleaning session\n(sequence diagram)
+
+actor "Home user\n(or Scheduler)" as Who
+
+box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
+  participant "session:\nAutomaticCleaningSession" as Session
+  participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
+  participant "cleaning:\nSurfaceCleaningController" as Clean
+end box
+
+alt [typical start accepted]
+  Who -> Session : StartSession(source)
+  activate Session
+  Session -> Nav : SessionStateChanged(active=true)
+  activate Nav
+  Nav --> Session : navigation policy enabled
+  deactivate Nav
+  Session -> Clean : SessionStateChanged(active=true)
+  activate Clean
+  Clean --> Session : cleaning policy enabled
+  deactivate Clean
+  deactivate Session
+  note over Who, Clean : next: UC-02
+else [A1 start ignored]
+  Who -> Session : StartSession(source)
+  activate Session
+  Session --> Who : start rejected
+  deactivate Session
+else [A2 resume after pause]
+  Who -> Session : ResumeSession(source)
+  activate Session
+  Session -> Nav : SessionStateChanged(active=true)
+  Session -> Clean : SessionStateChanged(active=true)
+  deactivate Session
+  note over Who, Clean : may re-enter UC-01; TBD
+else [E1 command lost]
+  Who -> Session : StartSession(source)
+  activate Session
+  Session --> Who : no acknowledgement received
+  deactivate Session
+end
+
+@enduml

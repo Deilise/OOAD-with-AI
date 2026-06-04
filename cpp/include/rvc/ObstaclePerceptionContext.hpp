@@ -17,7 +17,8 @@ private:
 
     bool frontObstacle_{false};
     bool leftObstacle_{false};
-    bool rightObstacle_{false};
+    bool rightObstacleInferred_{false};
+    ProbeStatus rightProbeStatus_{ProbeStatus::TBD};
     TimeStamp lastUpdateTime_{0};
     NavigationAndEscapeCoordinator& navigation_;
 };

@@ -11,12 +11,16 @@ const char* toString(rvc::MotionCommand command) {
     case rvc::MotionCommand::turnLeft: return "MotionCommand(turnLeft)";
     case rvc::MotionCommand::reverse: return "MotionCommand(reverse)";
     case rvc::MotionCommand::continueReverse: return "MotionCommand(continueReverse)";
+    case rvc::MotionCommand::probeRightSide: return "MotionCommand(probeRightSide)";
+    case rvc::MotionCommand::restoreHeading: return "MotionCommand(restoreHeading)";
+    case rvc::MotionCommand::restoreEscapeHeading: return "MotionCommand(restoreEscapeHeading)";
     case rvc::MotionCommand::lateralEscapeRight: return "MotionCommand(lateralEscapeRight)";
     case rvc::MotionCommand::lateralEscapeLeft: return "MotionCommand(lateralEscapeLeft)";
     case rvc::MotionCommand::forbidForward: return "MotionCommand(forbidForward)";
     case rvc::MotionCommand::stop: return "MotionCommand(stop)";
     case rvc::MotionCommand::fallbackTBD: return "MotionCommand(fallbackTBD)";
-    case rvc::MotionCommand::probeOrBackupTBD: return "MotionCommand(probeOrBackupTBD)";
+    case rvc::MotionCommand::fallbackOrEscalateTBD: return "MotionCommand(fallbackOrEscalateTBD)";
+    case rvc::MotionCommand::stopOrFallbackTBD: return "MotionCommand(stopOrFallbackTBD)";
     case rvc::MotionCommand::gradualOrPartialStopTBD: return "MotionCommand(gradualOrPartialStopTBD)";
     case rvc::MotionCommand::suppressMotionTBD: return "MotionCommand(suppressMotionTBD)";
     }
@@ -59,14 +63,14 @@ int main() {
     controller.initialize();
     controller.sessionIntentPort().StartSession(rvc::SessionSource::User);
     controller.obstacleInputPort().ObstacleStateChanged(
-        {rvc::ObstacleEventKind::frame, 1});
+        {rvc::ObstacleEventKind::forwardSafe, rvc::ProbePose::none, 1});
     controller.dustInputPort().DustSignalUpdated(rvc::DustSignal::aboveThreshold);
     controller.obstacleInputPort().ObstacleStateChanged(
-        {rvc::ObstacleEventKind::surrounded, 2});
+        {rvc::ObstacleEventKind::surrounded, rvc::ProbePose::right, 2});
     controller.obstacleInputPort().ObstacleStateChanged(
-        {rvc::ObstacleEventKind::lateralOpening, 3});
+        {rvc::ObstacleEventKind::lateralOpening, rvc::ProbePose::right, 3});
     controller.obstacleInputPort().ObstacleStateChanged(
-        {rvc::ObstacleEventKind::forwardSafe, 4});
+        {rvc::ObstacleEventKind::forwardSafe, rvc::ProbePose::none, 4});
     controller.sessionIntentPort().StopSession();
 
     std::cout << "Press Enter to exit..." << '\n';

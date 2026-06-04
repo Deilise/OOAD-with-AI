@@ -1,0 +1,36 @@
+@startuml UC09_system_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-09 — Build consistent fused obstacle picture\n(system sequence diagram)
+
+participant "Direct front / left\nobstacle sensors" as Obs
+box "Roomba RVC control software\n(black box)" #E8F4FF
+  participant "System" as Sys
+end box
+participant "Drive motors /\nwheels" as Drv
+
+alt [typical]
+  Obs -> Sys : ObstacleStateChanged(front=sample, left=sample)
+  Sys -> Drv : MotionCommand(action=probeRightSide)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, front=sample)
+  Sys -> Drv : MotionCommand(action=restoreHeading)
+  note over Sys : feeds UC-02 .. UC-05
+else [A1 asynchronous updates]
+  Obs -> Sys : ObstacleStateChanged(front=updated)
+  Obs -> Sys : ObstacleStateChanged(left=updated)
+  Sys -> Drv : MotionCommand(action=probeRightSide)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, front=updated)
+  Sys -> Drv : MotionCommand(action=restoreHeading)
+  note over Obs, Sys : snapshot and probe-validity alignment TBD
+else [E1 fusion/probe incoherent]
+  Obs -> Sys : ObstacleStateChanged(frontOrLeft=current)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, front=invalid)
+  note over Obs, Sys : next: UC-08
+end
+
+@enduml

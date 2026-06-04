@@ -82,6 +82,7 @@ TEST(NavigationAndEscapeCoordinatorTest, SurroundedSnapshotForbidsForwardThenSta
     fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::surrounded));
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
+                                               rvc::MotionCommand::restoreHeading,
                                                rvc::MotionCommand::forbidForward,
                                                rvc::MotionCommand::reverse,
                                            }));
@@ -97,8 +98,23 @@ TEST(NavigationAndEscapeCoordinatorTest, ReverseReadingsContinueReverse) {
     fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::reverseReadings));
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
+                                               rvc::MotionCommand::restoreEscapeHeading,
                                                rvc::MotionCommand::continueReverse,
                                            }));
+}
+
+TEST(NavigationAndEscapeCoordinatorTest, RequestRightSideProbeSuspendsCleaningBeforeProbeForAvoidance) {
+    NavigationAndEscapeCoordinatorFixture fixture;
+    fixture.activateSession();
+
+    fixture.navigation.RequestRightSideProbe(rvc::ProbeReason::rightTurnViability);
+
+    EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
+                                               rvc::MotionCommand::probeRightSide,
+                                           }));
+    EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
+                                                 rvc::CleaningCommand::suspend,
+                                             }));
 }
 
 TEST(NavigationAndEscapeCoordinatorTest, LateralOpeningsEscapeToAvailableSide) {
@@ -125,11 +141,10 @@ TEST(NavigationAndEscapeCoordinatorTest, ForwardBlockedPrefersRightWhenBothSides
     fixture.navigation.FusedObstacleSnapshot(blocked);
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
+                                               rvc::MotionCommand::restoreHeading,
                                                rvc::MotionCommand::turnRight,
                                            }));
-    EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
-                                                 rvc::CleaningCommand::suspend,
-                                             }));
+    EXPECT_TRUE(fixture.cleaningSink.commands.empty());
 }
 
 TEST(NavigationAndEscapeCoordinatorTest, ForwardBlockedTurnsLeftWhenOnlyLeftIsViable) {
@@ -142,25 +157,26 @@ TEST(NavigationAndEscapeCoordinatorTest, ForwardBlockedTurnsLeftWhenOnlyLeftIsVi
     fixture.navigation.FusedObstacleSnapshot(blocked);
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
+                                               rvc::MotionCommand::restoreHeading,
                                                rvc::MotionCommand::turnLeft,
                                            }));
-    EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
-                                                 rvc::CleaningCommand::suspend,
-                                             }));
+    EXPECT_TRUE(fixture.cleaningSink.commands.empty());
 }
 
 TEST(NavigationAndEscapeCoordinatorTest, RightTurnInvalidAvoidsLeft) {
     NavigationAndEscapeCoordinatorFixture fixture;
     fixture.activateSession();
+    auto blocked = snapshot(rvc::FusedObstacleSnapshotKind::rightTurnInvalid);
+    blocked.forwardBlocked = true;
+    blocked.leftTurnViable = true;
 
-    fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::rightTurnInvalid));
+    fixture.navigation.FusedObstacleSnapshot(blocked);
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
+                                               rvc::MotionCommand::restoreHeading,
                                                rvc::MotionCommand::turnLeft,
                                            }));
-    EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
-                                                 rvc::CleaningCommand::suspend,
-                                             }));
+    EXPECT_TRUE(fixture.cleaningSink.commands.empty());
 }
 
 TEST(NavigationAndEscapeCoordinatorTest, NoLateralOpeningUsesFallbackCommand) {

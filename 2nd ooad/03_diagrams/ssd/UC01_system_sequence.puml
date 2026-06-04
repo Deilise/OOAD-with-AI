@@ -1,0 +1,30 @@
+@startuml UC01_system_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-01 — Start automatic cleaning session\n(system sequence diagram)
+
+actor "Home user\n(or Scheduler)" as Who
+box "Roomba RVC control software\n(black box)" #E8F4FF
+  participant "System" as Sys
+end box
+
+alt [typical]
+  Who -> Sys : StartSession(source)
+  note over Who, Sys : next: UC-02
+else [A1 start ignored]
+  Who -> Sys : StartSession(source)
+  Sys --> Who : start rejected
+else [A2 resume after pause]
+  Who -> Sys : ResumeSession(source)
+  note over Who, Sys : may re-enter UC-01; TBD
+else [E1 command lost]
+  Who -> Sys : StartSession(source)
+  Sys --> Who : no acknowledgement received
+end
+
+@enduml

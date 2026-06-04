@@ -34,6 +34,11 @@
 !/cpp/simulator/
 !/cpp/simulator/*.cpp
 
+# Keep the OOAD deliverable documents, diagrams, code/test/simulator summaries,
+# and rendered diagram assets.
+!/2nd ooad/
+!/2nd ooad/**
+
 # Always ignore build outputs and generated artifacts.
 cpp/build/
 cpp/build-*/
@@ -53,6 +58,7 @@ build-*/
 coverage/
 coverage.xml
 coverage.html
+!/2nd ooad/05_unit_tests/coverage.html
 
 # Editor and OS noise.
 .vscode/

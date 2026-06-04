@@ -1,0 +1,12 @@
+<map id="UC05_system_sequence_map" name="UC05_system_sequence_map">
+<area shape="rect" id="id1" href="typical" title="typical" alt="" coords="100,841,204,855"/>
+<area shape="rect" id="id2" href="typical" title="typical" alt="" coords="90,340,232,354"/>
+<area shape="rect" id="id3" href="E3" title="E3" alt="" coords="110,1714,258,1727"/>
+<area shape="rect" id="id4" href="typical" title="typical" alt="" coords="184,1148,353,1161"/>
+<area shape="rect" id="id5" href="A1" title="A1" alt="" coords="110,1379,287,1393"/>
+<area shape="rect" id="id6" href="until" title="until" alt="" coords="196,924,385,938"/>
+<area shape="rect" id="id7" href="E1" title="E1" alt="" coords="110,1609,301,1623"/>
+<area shape="rect" id="id8" href="A2" title="A2" alt="" coords="174,614,367,627"/>
+<area shape="rect" id="id9" href="until" title="until" alt="" coords="196,639,400,652"/>
+<area shape="rect" id="id10" href="E2" title="E2" alt="" coords="164,228,395,241"/>
+</map>

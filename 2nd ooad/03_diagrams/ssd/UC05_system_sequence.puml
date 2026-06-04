@@ -1,0 +1,89 @@
+@startuml UC05_system_sequence
+!theme plain
+hide footbox
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+autonumber
+
+title UC-05 — Escape when surrounded\n(system sequence diagram)
+
+actor "Home user\n(beneficiary)" as User
+participant "Direct front / left\nobstacle sensors" as Obs
+box "Roomba RVC control software\n(black box)" #E8F4FF
+  participant "System" as Sys
+end box
+participant "Drive motors /\nwheel subsystem" as Drv
+participant "Cleaning hardware" as Cln
+
+note over User, Sys : after UC-01; right side is inferred by probe
+
+alt [E2 sensor/probe dropout during reverse]
+  Obs -> Sys : ObstacleStateChanged(front=stale, left=current)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, front=stale)
+  note over Obs, Sys : next: UC-08
+else [typical or A1 or A2 or E1 or E3]
+  Obs -> Sys : ObstacleStateChanged(front=blocked, left=blocked)
+  activate Sys
+  Sys -> Drv : MotionCommand(action=probeRightSide)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, front=blocked)
+  Sys -> Drv : MotionCommand(action=restoreHeading)
+  Sys -> Drv : MotionCommand(forbidForward)
+  Sys -> Cln : CleaningCommand(suspend)
+  note over Sys, Drv : surrounded = front blocked + left blocked + inferred right blocked
+  note right of Sys : escape requires reverse; not a 180-degree turn plus forward travel
+
+  alt [A2 intermittent surrounded flicker]
+    loop [until stable lateral opening or fallback]
+      Sys -> Drv : MotionCommand(reverse)
+      Obs -> Sys : ObstacleStateChanged(front=current, left=flicker)
+      Sys -> Drv : MotionCommand(action=probeRightSide)
+      Obs -> Sys : ObstacleStateChanged(probePose=right, front=flicker)
+      Sys -> Drv : MotionCommand(action=restoreEscapeHeading)
+      Sys -> Drv : MotionCommand(continueReverse)
+    end
+  else [typical reverse segment]
+    Sys -> Drv : MotionCommand(reverse)
+    Obs -> Sys : ObstacleStateChanged(front=current, left=current)
+    loop [until lateral opening or max backup]
+      Obs -> Sys : ObstacleStateChanged(front=current, left=current)
+      Sys -> Drv : MotionCommand(action=probeRightSide)
+      Obs -> Sys : ObstacleStateChanged(probePose=right, front=current)
+      Sys -> Drv : MotionCommand(action=restoreEscapeHeading)
+      Sys -> Drv : MotionCommand(continueReverse)
+    end
+    note right of Sys : forward-only clear does not end reverse while left and probed right remain closed
+  end
+
+  alt [typical lateral opening prefer right]
+    Obs -> Sys : ObstacleStateChanged(leftOpening=true)
+    Obs -> Sys : ObstacleStateChanged(probePose=right, front=clear)
+    Sys -> Drv : MotionCommand(lateralEscapeRight)
+    Obs -> Sys : ObstacleStateChanged(front=safe, left=current)
+    Sys -> Drv : MotionCommand(forward)
+    Sys -> Cln : CleaningCommand(active)
+    deactivate Sys
+    note over Sys : next: UC-02
+  else [A1 prefer right blocked turn left]
+    Obs -> Sys : ObstacleStateChanged(leftOpening=true)
+    Obs -> Sys : ObstacleStateChanged(probePose=right, front=blocked)
+    Sys -> Drv : MotionCommand(lateralEscapeLeft)
+    Obs -> Sys : ObstacleStateChanged(front=safe, left=current)
+    Sys -> Drv : MotionCommand(forward)
+    Sys -> Cln : CleaningCommand(active)
+    deactivate Sys
+    note over Sys : next: UC-02
+  else [E1 max backup no lateral opening]
+    Obs -> Sys : ObstacleStateChanged(leftOpening=false)
+    Obs -> Sys : ObstacleStateChanged(probePose=right, front=blocked)
+    Sys -> Drv : MotionCommand(fallbackTBD)
+    deactivate Sys
+  else [E3 residual symmetric trap]
+    Obs -> Sys : ObstacleStateChanged(noLateralOpeningWithinLimits)
+    Obs -> Sys : ObstacleStateChanged(probePose=right, front=noOpeningWithinLimits)
+    deactivate Sys
+    note over Sys : global mitigations TBD
+  end
+end
+
+@enduml

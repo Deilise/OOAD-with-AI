@@ -17,6 +17,7 @@ enum class SessionSource {
 enum class MotionState {
     ForwardCruise,
     Avoiding,
+    RightSideProbing,
     Reversing,
     Turning,
     Stopped,
@@ -43,12 +44,16 @@ enum class MotionCommand {
     turnLeft,
     reverse,
     continueReverse,
+    probeRightSide,
+    restoreHeading,
+    restoreEscapeHeading,
     lateralEscapeRight,
     lateralEscapeLeft,
     forbidForward,
     stop,
     fallbackTBD,
-    probeOrBackupTBD,
+    fallbackOrEscalateTBD,
+    stopOrFallbackTBD,
     gradualOrPartialStopTBD,
     suppressMotionTBD
 };
@@ -62,26 +67,19 @@ enum class CleaningCommand {
 };
 
 enum class ObstacleEventKind {
-    frame,
-    rawUpdates,
-    frontUpdate,
-    sideUpdate,
-    forwardBlockedNotSurrounded,
+    frontLeftSample,
+    probePoseRightSample,
     forwardBlocked,
     forwardSafe,
     forwardSafeAfterManeuver,
-    sensorSnapshot,
     surrounded,
+    leftOpening,
     lateralOpening,
-    rightBlocked,
-    rightInvalidForOpening,
-    flickerFrame,
-    readingsDuringReverse,
+    noLateralOpening,
     reverseReadings,
     reverseCycleSample,
-    maxBackupNoLateralOpening,
     noLateralOpeningWithinLimits,
-    oscillatingLateralReadings,
+    invalidOrTimeout,
     invalidOrStale,
     partialStale,
     recovered,
@@ -106,11 +104,37 @@ enum class FusedObstacleSnapshotKind {
     rightTurnViable,
     rightTurnInvalid,
     leftTurnViable,
+    noLateralTurnViable,
     noLateralOpening,
     unstable,
     consistencyApplied,
     alignedSnapshotTBD,
     incoherent,
+    TBD
+};
+
+enum class ProbeStatus {
+    Pending,
+    Valid,
+    Invalid,
+    Stale,
+    Timeout,
+    TBD
+};
+
+enum class ProbeReason {
+    classifyObstacle,
+    rightTurnViability,
+    surroundedCheck,
+    lateralOpeningCheck,
+    rightStatusNeeded,
+    alignRightProbe,
+    TBD
+};
+
+enum class ProbePose {
+    none,
+    right,
     TBD
 };
 
@@ -123,7 +147,11 @@ enum class DustSignal {
 
 struct ObstacleEvent {
     ObstacleEventKind kind{ObstacleEventKind::TBD};
+    ProbePose probePose{ProbePose::none};
     TimeStamp sampleTime{0};
+    bool frontBlocked{false};
+    bool leftBlocked{false};
+    bool leftOpening{false};
 };
 
 struct FusedObstacleSnapshot {

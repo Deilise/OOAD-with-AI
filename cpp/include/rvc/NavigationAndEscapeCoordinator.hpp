@@ -12,6 +12,7 @@ public:
                                    SurfaceCleaningController& cleaning);
 
     void SessionStateChanged(bool active);
+    void RequestRightSideProbe(ProbeReason reason);
     void FusedObstacleSnapshot(const rvc::FusedObstacleSnapshot& snapshot);
 
 private:
