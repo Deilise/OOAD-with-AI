@@ -8,28 +8,33 @@ autonumber
 
 title UC-09 — Build consistent fused obstacle picture\n(system sequence diagram)
 
-participant "Direct front / left\nobstacle sensors" as Obs
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(black box)" #E8F4FF
   participant "System" as Sys
 end box
 participant "Drive motors /\nwheels" as Drv
 
-alt [typical]
+alt [typical Forward toggle]
   Obs -> Sys : ObstacleStateChanged(front=sample, left=sample)
   Sys -> Drv : MotionCommand(action=probeRightSide)
   Obs -> Sys : ObstacleStateChanged(probePose=right, front=sample)
   Sys -> Drv : MotionCommand(action=restoreHeading)
   note over Sys : feeds UC-02 .. UC-05
-else [A1 asynchronous updates]
-  Obs -> Sys : ObstacleStateChanged(front=updated)
-  Obs -> Sys : ObstacleStateChanged(left=updated)
+else [typical Backward toggle]
+  Obs -> Sys : ObstacleStateChanged(back=sample, left=sample)
   Sys -> Drv : MotionCommand(action=probeRightSide)
-  Obs -> Sys : ObstacleStateChanged(probePose=right, front=updated)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, back=sample)
+  Sys -> Drv : MotionCommand(action=restoreHeading)
+  note over Sys : back is leading sector and probe sensor
+else [A1 asynchronous updates]
+  Obs -> Sys : ObstacleStateChanged(frontOrBack=updated, left=updated)
+  Sys -> Drv : MotionCommand(action=probeRightSide)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, sensor=updated)
   Sys -> Drv : MotionCommand(action=restoreHeading)
   note over Obs, Sys : snapshot and probe-validity alignment TBD
 else [E1 fusion/probe incoherent]
-  Obs -> Sys : ObstacleStateChanged(frontOrLeft=current)
-  Obs -> Sys : ObstacleStateChanged(probePose=right, front=invalid)
+  Obs -> Sys : ObstacleStateChanged(directSectors=current)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, sensor=invalid)
   note over Obs, Sys : next: UC-08
 end
 

@@ -1,7 +1,9 @@
 <map id="UC08_sequence_map" name="UC08_sequence_map">
-<area shape="rect" id="id1" href="typical" title="typical" alt="" coords="243,183,295,196"/>
-<area shape="rect" id="id2" href="typical" title="typical" alt="" coords="93,633,146,646"/>
-<area shape="rect" id="id3" href="E1" title="E1" alt="" coords="19,775,111,788"/>
-<area shape="rect" id="id4" href="A1" title="A1" alt="" coords="169,349,271,362"/>
-<area shape="rect" id="id5" href="probe" title="probe" alt="" coords="169,453,290,467"/>
+<area shape="rect" id="id1" href="A3" title="A3" alt="" coords="110,1027,194,1041"/>
+<area shape="rect" id="id2" href="typical" title="typical" alt="" coords="110,558,231,572"/>
+<area shape="rect" id="id3" href="E1" title="E1" alt="" coords="110,1228,249,1241"/>
+<area shape="rect" id="id4" href="A1" title="A1" alt="" coords="110,723,342,736"/>
+<area shape="rect" id="id5" href="A2" title="A2" alt="" coords="110,893,351,906"/>
+<area shape="rect" id="id6" href="typical" title="typical" alt="" coords="184,192,451,206"/>
+<area shape="rect" id="id7" href="typical" title="typical" alt="" coords="110,394,384,407"/>
 </map>

@@ -6,11 +6,10 @@ skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 autonumber
 
-title UC-02 - Cruise forward while cleaning\n(sequence diagram)
+title UC-02 — Cruise in normal mode while cleaning\n(sequence diagram)
 
 actor "Home user\n(beneficiary)" as User
-participant "Direct front / left\nobstacle sensors" as Obs
-participant "Dust sensor" as Dust
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
   participant "perception:\nObstaclePerceptionContext" as Perception
   participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
@@ -19,27 +18,31 @@ end box
 participant "Wheel motors\n(left, right)" as Motors
 participant "Cleaning hardware" as CleanHW
 
-note over User, Clean : after UC-01
+note over User, Clean : after UC-01; travelToggle=Forward initially
 
 loop [cruise cycle until stop or other UC]
-  alt [typical]
+  alt [typical Forward toggle]
     Obs -> Perception : ObstacleStateChanged(front=safe, left=current)
-    Perception -> Nav : FusedObstacleSnapshot(forwardSafe)
+    Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
     Nav -> Motors : MotionCommand(forward)
     Clean -> CleanHW : CleaningCommand(normal)
-  else [A1 dust boost concurrent]
-    Obs -> Perception : ObstacleStateChanged(front=safe, left=current)
-    Perception -> Nav : FusedObstacleSnapshot(forwardSafe)
-    Nav -> Motors : MotionCommand(forward)
-    Dust -> Clean : DustSignalUpdated(aboveThreshold)
-    Clean -> CleanHW : CleaningCommand(boost)
+  else [A1 toggled Backward cruise]
+    Obs -> Perception : ObstacleStateChanged(back=safe, left=current)
+    Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
+    Nav -> Motors : MotionCommand(reverse)
+    Clean -> CleanHW : CleaningCommand(normal)
+  else [A2 after dust maneuver toggle]
+    Obs -> Perception : ObstacleStateChanged(leadingSector=safe)
+    Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
+    Nav -> Motors : MotionCommand(forwardOrReversePerToggle)
+    Clean -> CleanHW : CleaningCommand(normal)
   else [E1 stale or missing obstacle data]
-    Obs -> Perception : ObstacleStateChanged(frontOrLeft=invalidOrStale)
+    Obs -> Perception : ObstacleStateChanged(leadingSector=invalidOrStale)
     Perception -> Nav : FusedObstacleSnapshot(invalid)
     note over Perception, Nav : next: UC-08
   end
 end
 
-note over Obs, CleanHW : repeat until UC-03, UC-04, UC-05, or stop
+note over Obs, CleanHW : repeat until UC-03, UC-04, UC-05, UC-06, or stop
 
 @enduml

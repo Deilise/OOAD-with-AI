@@ -14,20 +14,28 @@ enum class SessionSource {
     TBD
 };
 
+enum class TravelToggle {
+    Forward,
+    Backward,
+    TBD
+};
+
 enum class MotionState {
     ForwardCruise,
+    BackwardCruise,
     Avoiding,
     RightSideProbing,
-    Reversing,
+    SurroundedReversing,
+    DustManeuvering,
     Turning,
     Stopped,
     TBD
 };
 
 enum class CleaningMode {
-    Active,
+    Normal,
+    Boost,
     Suspended,
-    Boosted,
     TBD
 };
 
@@ -40,38 +48,40 @@ enum class PowerLevel {
 
 enum class MotionCommand {
     forward,
+    reverse,
+    forwardOrReversePerToggle,
     turnRight,
     turnLeft,
-    reverse,
-    continueReverse,
+    reverseEscapeSegment,
     probeRightSide,
     restoreHeading,
-    restoreEscapeHeading,
-    lateralEscapeRight,
-    lateralEscapeLeft,
-    forbidForward,
+    spin540Clockwise,
+    spin540CounterClockwise,
     stop,
-    fallbackTBD,
-    fallbackOrEscalateTBD,
+    holdOrReManeuverTBD,
+    stopOrSafeHold,
     stopOrFallbackTBD,
-    gradualOrPartialStopTBD,
-    suppressMotionTBD
+    fallbackOrEscalateTBD,
+    suppressMotionTBD,
+    TBD
 };
 
 enum class CleaningCommand {
     normal,
     boost,
-    active,
     suspend,
-    unchangedOrDeferredTBD
+    TBD
 };
 
 enum class ObstacleEventKind {
-    frontLeftSample,
+    frontSample,
+    leftSample,
+    backSample,
     probePoseRightSample,
-    forwardBlocked,
-    forwardSafe,
-    forwardSafeAfterManeuver,
+    leadingSectorBlocked,
+    leadingSectorSafe,
+    dustDetected,
+    dustCleared,
     surrounded,
     leftOpening,
     lateralOpening,
@@ -84,31 +94,30 @@ enum class ObstacleEventKind {
     partialStale,
     recovered,
     ambiguous,
-    dropoutDuringReverse,
     TBD
 };
 
 enum class FusedObstacleSnapshotKind {
-    forwardSafe,
-    forwardBlocked,
+    leadingSectorSafe,
+    leadingSectorBlocked,
     notSurrounded,
     surrounded,
     invalid,
+    stale,
+    probeStale,
+    persistentInvalid,
     valid,
     ambiguous,
     partialStale,
-    snapshot,
-    reverseReadings,
-    reverseCycleSample,
-    lateralOpening,
     rightTurnViable,
     rightTurnInvalid,
     leftTurnViable,
     noLateralTurnViable,
     noLateralOpening,
+    reverseReadings,
+    reverseCycleSample,
+    lateralOpening,
     unstable,
-    consistencyApplied,
-    alignedSnapshotTBD,
     incoherent,
     TBD
 };
@@ -138,6 +147,12 @@ enum class ProbePose {
     TBD
 };
 
+enum class ProbeSensor {
+    front,
+    back,
+    TBD
+};
+
 enum class DustSignal {
     aboveThreshold,
     invalid,
@@ -148,18 +163,20 @@ enum class DustSignal {
 struct ObstacleEvent {
     ObstacleEventKind kind{ObstacleEventKind::TBD};
     ProbePose probePose{ProbePose::none};
+    ProbeSensor probeSensor{ProbeSensor::TBD};
     TimeStamp sampleTime{0};
     bool frontBlocked{false};
     bool leftBlocked{false};
-    bool leftOpening{false};
+    bool backBlocked{false};
+    bool leadingSectorBlocked{false};
 };
 
 struct FusedObstacleSnapshot {
     FusedObstacleSnapshotKind kind{FusedObstacleSnapshotKind::TBD};
-    bool forwardBlocked{false};
+    bool leadingSectorBlocked{false};
+    bool leadingSectorSafe{false};
     bool surrounded{false};
     bool lateralOpening{false};
-    bool forwardSafe{false};
     bool rightTurnViable{false};
     bool leftTurnViable{false};
     bool valid{true};

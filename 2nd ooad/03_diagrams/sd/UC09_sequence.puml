@@ -6,36 +6,53 @@ skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 autonumber
 
-title UC-09 - Build consistent fused obstacle picture\n(sequence diagram)
+title UC-09 — Fuse obstacle readings and right-side probe\n(sequence diagram)
 
-participant "Direct front / left\nobstacle sensors" as Obs
+actor "Home user\n(beneficiary)" as User
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
   participant "perception:\nObstaclePerceptionContext" as Perception
   participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
 end box
 participant "Wheel motors\n(left, right)" as Motors
 
-alt [typical]
-  Obs -> Perception : ObstacleStateChanged(front=sample, left=sample)
-  Perception -> Nav : RequestRightSideProbe(reason=rightStatusNeeded)
-  Nav -> Motors : MotionCommand(action=probeRightSide)
-  Obs -> Perception : ObstacleStateChanged(probePose=right, front=sample)
-  Perception -> Nav : FusedObstacleSnapshot(consistencyApplied)
-  Nav -> Motors : MotionCommand(action=restoreHeading)
-  note over Nav : feeds UC-02 .. UC-05
-else [A1 asynchronous updates]
-  Obs -> Perception : ObstacleStateChanged(front=updated)
-  Obs -> Perception : ObstacleStateChanged(left=updated)
-  Perception -> Nav : RequestRightSideProbe(reason=alignRightProbe)
-  Nav -> Motors : MotionCommand(action=probeRightSide)
-  Obs -> Perception : ObstacleStateChanged(probePose=right, front=updated)
-  Perception -> Nav : FusedObstacleSnapshot(alignedSnapshotTBD)
-  Nav -> Motors : MotionCommand(action=restoreHeading)
-else [E1 fusion/probe incoherent]
-  Obs -> Perception : ObstacleStateChanged(frontOrLeft=current)
-  Obs -> Perception : ObstacleStateChanged(probePose=right, front=invalid)
-  Perception -> Nav : FusedObstacleSnapshot(incoherent)
-  note over Perception, Nav : next: UC-08
+note over User, Motors : Perception fuses raw sensor events;\nNav requests probe with sensor per travelToggle
+
+alt [typical Forward toggle fusion]
+  Obs -> Perception : ObstacleStateChanged(front=blocked, left=clear, back=ignoredForLeading)
+  Perception -> Perception : fuse(leadingSector=front)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorBlocked, notSurrounded)
+  Nav -> Motors : MotionCommand(action=probeRightSide, probeSensor=front)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, front=clear)
+  Perception -> Perception : fuse(probeResult=rightTurnViable)
+  Perception -> Nav : FusedObstacleSnapshot(notSurrounded, rightTurnViable)
+else [typical Backward toggle fusion]
+  Obs -> Perception : ObstacleStateChanged(back=blocked, left=clear, front=notLeading)
+  Perception -> Perception : fuse(leadingSector=back)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorBlocked, notSurrounded)
+  Nav -> Motors : MotionCommand(action=probeRightSide, probeSensor=back)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, back=clear)
+  Perception -> Perception : fuse(probeResult=rightTurnViable)
+  Perception -> Nav : FusedObstacleSnapshot(notSurrounded, rightTurnViable)
+else [A1 surrounded classification Forward toggle]
+  Obs -> Perception : ObstacleStateChanged(front=blocked, left=blocked)
+  Nav -> Motors : MotionCommand(action=probeRightSide, probeSensor=front)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, front=blocked)
+  Perception -> Perception : fuse(surrounded=true)
+  Perception -> Nav : FusedObstacleSnapshot(surrounded=true)
+  note over Perception, Nav : next: UC-05
+else [A2 surrounded classification Backward toggle]
+  Obs -> Perception : ObstacleStateChanged(front=blocked, left=blocked)
+  Nav -> Motors : MotionCommand(action=probeRightSide, probeSensor=back)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, back=blocked)
+  Perception -> Perception : fuse(surrounded=true)
+  Perception -> Nav : FusedObstacleSnapshot(surrounded=true)
+  note over Perception, Nav : next: UC-05
+else [E1 conflicting sensor readings]
+  Obs -> Perception : ObstacleStateChanged(front=blocked, left=blocked, back=clear)
+  Perception -> Perception : fuse(conflict=detected)
+  Perception -> Nav : FusedObstacleSnapshot(ambiguous)
+  note over Perception, Nav : next: UC-08 or conservative hold (TBD)
 end
 
 @enduml

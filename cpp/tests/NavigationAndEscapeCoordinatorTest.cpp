@@ -31,12 +31,14 @@ rvc::FusedObstacleSnapshot snapshot(rvc::FusedObstacleSnapshotKind kind) {
 
 } // namespace
 
-TEST(NavigationAndEscapeCoordinatorTest, SessionStateChangedActiveEnablesPolicyWithoutImmediateCommand) {
+TEST(NavigationAndEscapeCoordinatorTest, SessionStateChangedActiveStartsForwardCruise) {
     NavigationAndEscapeCoordinatorFixture fixture;
 
     fixture.navigation.SessionStateChanged(true);
 
-    EXPECT_TRUE(fixture.motionSink.commands.empty());
+    EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
+                                               rvc::MotionCommand::forward,
+                                           }));
 }
 
 TEST(NavigationAndEscapeCoordinatorTest, SessionStateChangedInactiveStopsMotion) {
@@ -63,19 +65,19 @@ TEST(NavigationAndEscapeCoordinatorTest, InvalidSnapshotStopsMotionAndSuspendsCl
                                              }));
 }
 
-TEST(NavigationAndEscapeCoordinatorTest, PartialStaleSnapshotUsesPartialStopCommand) {
+TEST(NavigationAndEscapeCoordinatorTest, PartialStaleSnapshotUsesSafeHoldCommand) {
     NavigationAndEscapeCoordinatorFixture fixture;
     fixture.activateSession();
 
     fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::partialStale));
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
-                                               rvc::MotionCommand::gradualOrPartialStopTBD,
+                                               rvc::MotionCommand::stopOrSafeHold,
                                            }));
     EXPECT_TRUE(fixture.cleaningSink.commands.empty());
 }
 
-TEST(NavigationAndEscapeCoordinatorTest, SurroundedSnapshotForbidsForwardThenStartsReverse) {
+TEST(NavigationAndEscapeCoordinatorTest, SurroundedSnapshotRestoresHeadingThenReverseEscape) {
     NavigationAndEscapeCoordinatorFixture fixture;
     fixture.activateSession();
 
@@ -83,23 +85,21 @@ TEST(NavigationAndEscapeCoordinatorTest, SurroundedSnapshotForbidsForwardThenSta
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
                                                rvc::MotionCommand::restoreHeading,
-                                               rvc::MotionCommand::forbidForward,
-                                               rvc::MotionCommand::reverse,
+                                               rvc::MotionCommand::reverseEscapeSegment,
                                            }));
     EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
                                                  rvc::CleaningCommand::suspend,
                                              }));
 }
 
-TEST(NavigationAndEscapeCoordinatorTest, ReverseReadingsContinueReverse) {
+TEST(NavigationAndEscapeCoordinatorTest, ReverseReadingsContinueReverseEscape) {
     NavigationAndEscapeCoordinatorFixture fixture;
     fixture.activateSession();
 
     fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::reverseReadings));
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
-                                               rvc::MotionCommand::restoreEscapeHeading,
-                                               rvc::MotionCommand::continueReverse,
+                                               rvc::MotionCommand::reverseEscapeSegment,
                                            }));
 }
 
@@ -117,7 +117,7 @@ TEST(NavigationAndEscapeCoordinatorTest, RequestRightSideProbeSuspendsCleaningBe
                                              }));
 }
 
-TEST(NavigationAndEscapeCoordinatorTest, LateralOpeningsEscapeToAvailableSide) {
+TEST(NavigationAndEscapeCoordinatorTest, LateralOpeningsTurnTowardAvailableSide) {
     NavigationAndEscapeCoordinatorFixture fixture;
     fixture.activateSession();
 
@@ -125,16 +125,18 @@ TEST(NavigationAndEscapeCoordinatorTest, LateralOpeningsEscapeToAvailableSide) {
     fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::leftTurnViable));
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
-                                               rvc::MotionCommand::lateralEscapeRight,
-                                               rvc::MotionCommand::lateralEscapeLeft,
+                                               rvc::MotionCommand::restoreHeading,
+                                               rvc::MotionCommand::turnRight,
+                                               rvc::MotionCommand::restoreHeading,
+                                               rvc::MotionCommand::turnLeft,
                                            }));
 }
 
-TEST(NavigationAndEscapeCoordinatorTest, ForwardBlockedPrefersRightWhenBothSidesAreViable) {
+TEST(NavigationAndEscapeCoordinatorTest, LeadingSectorBlockedPrefersRightWhenBothSidesAreViable) {
     NavigationAndEscapeCoordinatorFixture fixture;
     fixture.activateSession();
-    auto blocked = snapshot(rvc::FusedObstacleSnapshotKind::forwardBlocked);
-    blocked.forwardBlocked = true;
+    auto blocked = snapshot(rvc::FusedObstacleSnapshotKind::leadingSectorBlocked);
+    blocked.leadingSectorBlocked = true;
     blocked.rightTurnViable = true;
     blocked.leftTurnViable = true;
 
@@ -147,11 +149,11 @@ TEST(NavigationAndEscapeCoordinatorTest, ForwardBlockedPrefersRightWhenBothSides
     EXPECT_TRUE(fixture.cleaningSink.commands.empty());
 }
 
-TEST(NavigationAndEscapeCoordinatorTest, ForwardBlockedTurnsLeftWhenOnlyLeftIsViable) {
+TEST(NavigationAndEscapeCoordinatorTest, LeadingSectorBlockedTurnsLeftWhenOnlyLeftIsViable) {
     NavigationAndEscapeCoordinatorFixture fixture;
     fixture.activateSession();
-    auto blocked = snapshot(rvc::FusedObstacleSnapshotKind::forwardBlocked);
-    blocked.forwardBlocked = true;
+    auto blocked = snapshot(rvc::FusedObstacleSnapshotKind::leadingSectorBlocked);
+    blocked.leadingSectorBlocked = true;
     blocked.leftTurnViable = true;
 
     fixture.navigation.FusedObstacleSnapshot(blocked);
@@ -167,7 +169,7 @@ TEST(NavigationAndEscapeCoordinatorTest, RightTurnInvalidAvoidsLeft) {
     NavigationAndEscapeCoordinatorFixture fixture;
     fixture.activateSession();
     auto blocked = snapshot(rvc::FusedObstacleSnapshotKind::rightTurnInvalid);
-    blocked.forwardBlocked = true;
+    blocked.leadingSectorBlocked = true;
     blocked.leftTurnViable = true;
 
     fixture.navigation.FusedObstacleSnapshot(blocked);
@@ -186,7 +188,7 @@ TEST(NavigationAndEscapeCoordinatorTest, NoLateralOpeningUsesFallbackCommand) {
     fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::noLateralOpening));
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
-                                               rvc::MotionCommand::fallbackTBD,
+                                               rvc::MotionCommand::fallbackOrEscalateTBD,
                                            }));
 }
 
@@ -201,26 +203,24 @@ TEST(NavigationAndEscapeCoordinatorTest, UnstableSnapshotSuppressesMotion) {
                                            }));
 }
 
-TEST(NavigationAndEscapeCoordinatorTest, ForwardSafeResumesForwardCleaning) {
+TEST(NavigationAndEscapeCoordinatorTest, LeadingSectorSafeResumesForwardCleaning) {
     NavigationAndEscapeCoordinatorFixture fixture;
     fixture.activateSession();
 
-    fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::forwardSafe));
+    fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::leadingSectorSafe));
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
                                                rvc::MotionCommand::forward,
                                            }));
     EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
-                                                 rvc::CleaningCommand::active,
+                                                 rvc::CleaningCommand::normal,
                                              }));
 }
 
-TEST(NavigationAndEscapeCoordinatorTest, ConsistencyOnlySnapshotsDoNotEmitCommands) {
+TEST(NavigationAndEscapeCoordinatorTest, ValidSnapshotsDoNotEmitCommands) {
     NavigationAndEscapeCoordinatorFixture fixture;
     fixture.activateSession();
 
-    fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::consistencyApplied));
-    fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::alignedSnapshotTBD));
     fixture.navigation.FusedObstacleSnapshot(snapshot(rvc::FusedObstacleSnapshotKind::valid));
 
     EXPECT_TRUE(fixture.motionSink.commands.empty());

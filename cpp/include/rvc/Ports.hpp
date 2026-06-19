@@ -32,14 +32,15 @@ class MotionCommandSink {
 public:
     virtual ~MotionCommandSink() = default;
 
-    virtual void MotionCommand(rvc::MotionCommand command) = 0;
+    virtual void MotionCommand(MotionCommand command,
+                               ProbeSensor probeSensor = ProbeSensor::TBD) = 0;
 };
 
 class CleaningCommandSink {
 public:
     virtual ~CleaningCommandSink() = default;
 
-    virtual void CleaningCommand(rvc::CleaningCommand command) = 0;
+    virtual void CleaningCommand(CleaningCommand command) = 0;
 };
 
 } // namespace rvc

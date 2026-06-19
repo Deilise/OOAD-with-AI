@@ -9,8 +9,6 @@ void SurfaceCleaningController::SessionStateChanged(bool active) {
     sessionActive_ = active;
 
     if (active) {
-        cleaningMode_ = CleaningMode::Active;
-        powerLevel_ = PowerLevel::Normal;
         return;
     }
 
@@ -19,37 +17,21 @@ void SurfaceCleaningController::SessionStateChanged(bool active) {
     send(CleaningCommand::suspend);
 }
 
-void SurfaceCleaningController::DustSignalUpdated(DustSignal signal) {
-    dustSignal_ = signal;
+void SurfaceCleaningController::SessionStateChanged(bool active, CleaningMode cleaningMode) {
+    sessionActive_ = active;
 
-    if (!sessionActive_) {
-        send(CleaningCommand::unchangedOrDeferredTBD);
+    if (!active) {
+        cleaningMode_ = CleaningMode::Suspended;
+        powerLevel_ = PowerLevel::Off;
+        send(CleaningCommand::suspend);
         return;
     }
 
-    switch (signal) {
-    case DustSignal::aboveThreshold:
-        cleaningMode_ = CleaningMode::Boosted;
-        powerLevel_ = PowerLevel::Boost;
-        send(CleaningCommand::boost);
-        cleaningMode_ = CleaningMode::Active;
-        powerLevel_ = PowerLevel::Normal;
-        send(CleaningCommand::normal);
-        break;
-    case DustSignal::normal:
-        cleaningMode_ = CleaningMode::Active;
-        powerLevel_ = PowerLevel::Normal;
-        send(CleaningCommand::normal);
-        break;
-    case DustSignal::invalid:
-        cleaningMode_ = CleaningMode::Active;
-        powerLevel_ = PowerLevel::Normal;
-        send(CleaningCommand::normal);
-        break;
-    case DustSignal::TBD:
-        send(CleaningCommand::unchangedOrDeferredTBD);
-        break;
-    }
+    SetCleaningMode(cleaningMode);
+}
+
+void SurfaceCleaningController::DustSignalUpdated(DustSignal signal) {
+    dustSignal_ = signal;
 }
 
 void SurfaceCleaningController::SuspendCleaningForManeuver() {
@@ -57,15 +39,47 @@ void SurfaceCleaningController::SuspendCleaningForManeuver() {
     send(CleaningCommand::suspend);
 }
 
-void SurfaceCleaningController::ResumeCleaningAfterManeuver() {
+void SurfaceCleaningController::ResumeCleaningAfterManeuver(CleaningMode mode) {
     if (!sessionActive_) {
-        send(CleaningCommand::unchangedOrDeferredTBD);
         return;
     }
 
-    cleaningMode_ = CleaningMode::Active;
-    powerLevel_ = PowerLevel::Normal;
-    send(CleaningCommand::active);
+    SetCleaningMode(mode);
+}
+
+void SurfaceCleaningController::StartBoostCleaning() {
+    if (!sessionActive_) {
+        return;
+    }
+
+    cleaningMode_ = CleaningMode::Boost;
+    powerLevel_ = PowerLevel::Boost;
+    send(CleaningCommand::boost);
+}
+
+void SurfaceCleaningController::EndBoostCleaning() {
+    SetCleaningMode(CleaningMode::Normal);
+}
+
+void SurfaceCleaningController::SetCleaningMode(CleaningMode mode) {
+    cleaningMode_ = mode;
+
+    switch (mode) {
+    case CleaningMode::Normal:
+        powerLevel_ = PowerLevel::Normal;
+        send(CleaningCommand::normal);
+        break;
+    case CleaningMode::Boost:
+        powerLevel_ = PowerLevel::Boost;
+        send(CleaningCommand::boost);
+        break;
+    case CleaningMode::Suspended:
+        powerLevel_ = PowerLevel::Off;
+        send(CleaningCommand::suspend);
+        break;
+    case CleaningMode::TBD:
+        break;
+    }
 }
 
 void SurfaceCleaningController::send(CleaningCommand command) {

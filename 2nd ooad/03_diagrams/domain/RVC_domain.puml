@@ -9,7 +9,7 @@ skinparam ranksep 32
 skinparam ArrowThickness 1
 skinparam directionStyle none
 
-title Roomba RVC — Domain model\n(SRS v0.6.0: right side inferred by probe)
+title Roomba RVC — Domain model\n(SRS v0.7.2: travelToggle, back sensor, dust maneuver)
 
 skinparam class<<domain>> {
   BackgroundColor #FFFFFF
@@ -35,7 +35,7 @@ legend top left
 endlegend
 
 class "Home user / Scheduler" as User <<external>>
-class "Direct obstacle sensors\n(front, left)" as ObsHW <<external>>
+class "Direct obstacle sensors\n(front, left, back)" as ObsHW <<external>>
 class "Dust sensor" as DustHW <<external>>
 class "Wheel motors\n(left, right)" as MotionHW <<external>>
 class "Cleaning hardware" as CleanHW <<external>>
@@ -50,6 +50,7 @@ package " " as InsideSW {
   class ObstaclePerceptionContext <<domain>> {
     frontObstacle : Boolean
     leftObstacle : Boolean
+    backObstacle : Boolean
     rightObstacleInferred : Boolean
     rightProbeStatus : ProbeStatus
     lastUpdateTime : TimeStamp
@@ -57,6 +58,7 @@ package " " as InsideSW {
 
   class NavigationAndEscapeCoordinator <<domain>> {
     motionState : MotionState
+    travelToggle : TravelToggle
     backupDistanceRemaining : Distance
   }
 
@@ -69,33 +71,42 @@ package " " as InsideSW {
 
 User "0..*" -down- "1" AutomaticCleaningSession : StartSession /\nStopSession
 
-ObsHW "2" -down- "1" ObstaclePerceptionContext : ObstacleStateChanged\n(front/left direct)
+ObsHW "3" -down- "1" ObstaclePerceptionContext : ObstacleStateChanged\n(front/left/back direct)
 
 DustHW "1" -down- "1" SurfaceCleaningController : DustSignalUpdated
 
-AutomaticCleaningSession "1" -right- "1" NavigationAndEscapeCoordinator : notifies session state
-AutomaticCleaningSession "1" -left- "1" SurfaceCleaningController : notifies session state
+AutomaticCleaningSession "1" -right- "1" NavigationAndEscapeCoordinator : notifies session state\n(initial travelToggle=Forward)
+AutomaticCleaningSession "1" -left- "1" SurfaceCleaningController : notifies session state\n(initial cleaningMode=Normal)
 
 ObstaclePerceptionContext "1" -down- "1" NavigationAndEscapeCoordinator : FusedObstacleSnapshot /\nRequestRightSideProbe
 
-NavigationAndEscapeCoordinator "1" -down- "1" SurfaceCleaningController : SuspendCleaningForManeuver\nResumeCleaningAfterManeuver
+NavigationAndEscapeCoordinator "1" -down- "1" SurfaceCleaningController : SuspendCleaningForManeuver\nResumeCleaningAfterManeuver\nStartBoostCleaning / EndBoostCleaning
 
-NavigationAndEscapeCoordinator "1" -down- "2" MotionHW : MotionCommand\n(forward/reverse/turn/probe)
-SurfaceCleaningController "1" -down- "1" CleanHW : CleaningCommand
+NavigationAndEscapeCoordinator "1" -down- "2" MotionHW : MotionCommand\n(forward/reverse/turn/probe/spin540)
+SurfaceCleaningController "1" -down- "1" CleanHW : CleaningCommand\n(normal/boost/suspend)
 
 note bottom of ObstaclePerceptionContext
   **FusedObstacleSnapshot** (message payload,
-  OBJ3-FR-3): derived from direct front/left
-  samples plus right-side probe observation;
-  includes surrounded, lateralOpening,
-  forwardSafe, turn viability (design)
+  OBJ3-FR-3): direct front/left/back (when
+  applicable) plus right-side probe result;
+  back ignored during dust maneuver; back
+  not leading sector during surrounded-escape
+  reverse (still used for probe if toggled
+  Backward)
+end note
+
+note bottom of NavigationAndEscapeCoordinator
+  **travelToggle** swaps leading travel edge:
+  Forward = front leads; Backward = back leads.
+  Toggled on dust-maneuver completion only.
+  **ToggleTravelDirection** (internal)
 end note
 
 note right of ObsHW
   No dedicated right-side sensor.
-  During a right-side probe, the robot
-  re-orients and an available sensor
-  observes the right side.
+  Right-side probe uses **front** sensor when
+  travelToggle=Forward, **back** sensor when
+  travelToggle=Backward.
 end note
 
 @enduml

@@ -9,7 +9,7 @@ autonumber
 title UC-08 — Handle missing / invalid / stale obstacle or probe data\n(system sequence diagram)
 
 actor "Home user" as User
-participant "Direct front / left\nobstacle sensors" as Obs
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(black box)" #E8F4FF
   participant "System" as Sys
 end box
@@ -17,18 +17,24 @@ participant "Drive motors /\nwheels" as Drv
 participant "Cleaning hardware" as Cln
 
 alt [typical full fault]
-  Obs -> Sys : ObstacleStateChanged(frontOrLeft=invalidOrStale)
+  Obs -> Sys : ObstacleStateChanged(frontOrLeftOrBack=invalidOrStale)
   activate Sys
   Sys -> Drv : MotionCommand(stop)
   Sys -> Cln : CleaningCommand(suspend)
   deactivate Sys
 else [A1 partial staleness]
-  Obs -> Sys : ObstacleStateChanged(frontOrLeft=partialStale)
+  Obs -> Sys : ObstacleStateChanged(oneSector=partialStale)
   activate Sys
   Sys -> Drv : MotionCommand(gradualOrPartialStopTBD)
   deactivate Sys
-else [probe invalid or timed out]
+else [probe invalid or timed out Forward toggle]
   Obs -> Sys : ObstacleStateChanged(probePose=right, front=invalidOrTimeout)
+  activate Sys
+  Sys -> Drv : MotionCommand(stopOrFallbackTBD)
+  Sys -> Cln : CleaningCommand(suspend)
+  deactivate Sys
+else [probe invalid or timed out Backward toggle]
+  Obs -> Sys : ObstacleStateChanged(probePose=right, back=invalidOrTimeout)
   activate Sys
   Sys -> Drv : MotionCommand(stopOrFallbackTBD)
   Sys -> Cln : CleaningCommand(suspend)
@@ -36,8 +42,8 @@ else [probe invalid or timed out]
 end
 
 alt [typical recovery]
-  Obs -> Sys : ObstacleStateChanged(frontAndLeft=recovered)
-  Obs -> Sys : ObstacleStateChanged(probePose=right, front=validWhenRequired)
+  Obs -> Sys : ObstacleStateChanged(directSectors=recovered)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, sensor=validWhenRequired)
   note over Sys : recovery before UC-02: TBD
 else [E1 never recovers]
   note over User : user resets or moves robot

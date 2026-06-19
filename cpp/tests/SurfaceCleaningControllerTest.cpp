@@ -33,36 +33,33 @@ TEST(SurfaceCleaningControllerTest, SessionStateChangedInactiveSuspendsCleaning)
                                             }));
 }
 
-TEST(SurfaceCleaningControllerTest, DustSignalUpdatedBoostsThenReturnsToNormalWhenActive) {
+TEST(SurfaceCleaningControllerTest, SessionStateChangedWithNormalModeSendsNormal) {
+    SurfaceCleaningControllerFixture fixture;
+
+    fixture.cleaning.SessionStateChanged(true, rvc::CleaningMode::Normal);
+
+    EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
+                                                rvc::CleaningCommand::normal,
+                                            }));
+}
+
+TEST(SurfaceCleaningControllerTest, DustSignalUpdatedStoresSignalWithoutImmediateCommand) {
     SurfaceCleaningControllerFixture fixture;
     fixture.cleaning.SessionStateChanged(true);
 
     fixture.cleaning.DustSignalUpdated(rvc::DustSignal::aboveThreshold);
+
+    EXPECT_TRUE(fixture.cleaningSink.commands.empty());
+}
+
+TEST(SurfaceCleaningControllerTest, StartBoostCleaningSendsBoostWhenSessionActive) {
+    SurfaceCleaningControllerFixture fixture;
+    fixture.cleaning.SessionStateChanged(true);
+
+    fixture.cleaning.StartBoostCleaning();
 
     EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
                                                 rvc::CleaningCommand::boost,
-                                                rvc::CleaningCommand::normal,
-                                            }));
-}
-
-TEST(SurfaceCleaningControllerTest, DustSignalUpdatedKeepsNormalForInvalidSignal) {
-    SurfaceCleaningControllerFixture fixture;
-    fixture.cleaning.SessionStateChanged(true);
-
-    fixture.cleaning.DustSignalUpdated(rvc::DustSignal::invalid);
-
-    EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
-                                                rvc::CleaningCommand::normal,
-                                            }));
-}
-
-TEST(SurfaceCleaningControllerTest, DustSignalUpdatedDefersBoostWhenSessionInactive) {
-    SurfaceCleaningControllerFixture fixture;
-
-    fixture.cleaning.DustSignalUpdated(rvc::DustSignal::aboveThreshold);
-
-    EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
-                                                rvc::CleaningCommand::unchangedOrDeferredTBD,
                                             }));
 }
 
@@ -76,14 +73,14 @@ TEST(SurfaceCleaningControllerTest, SuspendCleaningForManeuverSendsSuspend) {
                                             }));
 }
 
-TEST(SurfaceCleaningControllerTest, ResumeCleaningAfterManeuverSendsActiveWhenSessionActive) {
+TEST(SurfaceCleaningControllerTest, ResumeCleaningAfterManeuverSendsNormalWhenSessionActive) {
     SurfaceCleaningControllerFixture fixture;
     fixture.cleaning.SessionStateChanged(true);
 
     fixture.cleaning.ResumeCleaningAfterManeuver();
 
     EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
-                                                rvc::CleaningCommand::active,
+                                                rvc::CleaningCommand::normal,
                                             }));
 }
 
@@ -92,7 +89,5 @@ TEST(SurfaceCleaningControllerTest, ResumeCleaningAfterManeuverDefersWhenSession
 
     fixture.cleaning.ResumeCleaningAfterManeuver();
 
-    EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
-                                                rvc::CleaningCommand::unchangedOrDeferredTBD,
-                                            }));
+    EXPECT_TRUE(fixture.cleaningSink.commands.empty());
 }

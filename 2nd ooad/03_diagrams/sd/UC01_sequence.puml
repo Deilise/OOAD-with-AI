@@ -19,11 +19,11 @@ end box
 alt [typical start accepted]
   Who -> Session : StartSession(source)
   activate Session
-  Session -> Nav : SessionStateChanged(active=true)
+  Session -> Nav : SessionStateChanged(active=true,\ntravelToggle=Forward)
   activate Nav
   Nav --> Session : navigation policy enabled
   deactivate Nav
-  Session -> Clean : SessionStateChanged(active=true)
+  Session -> Clean : SessionStateChanged(active=true,\ncleaningMode=Normal)
   activate Clean
   Clean --> Session : cleaning policy enabled
   deactivate Clean

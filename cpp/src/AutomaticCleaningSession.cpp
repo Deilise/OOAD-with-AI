@@ -12,26 +12,32 @@ AutomaticCleaningSession::AutomaticCleaningSession(NavigationAndEscapeCoordinato
 void AutomaticCleaningSession::StartSession(SessionSource source) {
     sessionActive_ = true;
     sessionSource_ = source;
-    notifySessionStateChanged();
+    notifySessionStateChanged(true);
 }
 
 void AutomaticCleaningSession::StopSession() {
     sessionActive_ = false;
-    notifySessionStateChanged();
+    notifySessionStateChanged(false);
 }
 
 void AutomaticCleaningSession::ResumeSession(SessionSource source) {
     sessionActive_ = true;
     sessionSource_ = source;
-    notifySessionStateChanged();
+    notifySessionStateChanged(false);
 }
 
 void AutomaticCleaningSession::requestServiceOrReset() {
     sessionActive_ = false;
-    notifySessionStateChanged();
+    notifySessionStateChanged(false);
 }
 
-void AutomaticCleaningSession::notifySessionStateChanged() {
+void AutomaticCleaningSession::notifySessionStateChanged(bool initializeDefaults) {
+    if (sessionActive_ && initializeDefaults) {
+        navigation_.SessionStateChanged(true, TravelToggle::Forward);
+        cleaning_.SessionStateChanged(true, CleaningMode::Normal);
+        return;
+    }
+
     navigation_.SessionStateChanged(sessionActive_);
     cleaning_.SessionStateChanged(sessionActive_);
 }

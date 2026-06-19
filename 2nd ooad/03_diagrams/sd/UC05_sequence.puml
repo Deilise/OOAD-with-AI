@@ -6,10 +6,10 @@ skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 autonumber
 
-title UC-05 - Escape when surrounded\n(sequence diagram)
+title UC-05 — Escape when surrounded\n(sequence diagram)
 
 actor "Home user\n(beneficiary)" as User
-participant "Direct front / left\nobstacle sensors" as Obs
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
   participant "perception:\nObstaclePerceptionContext" as Perception
   participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
@@ -18,85 +18,54 @@ end box
 participant "Wheel motors\n(left, right)" as Motors
 participant "Cleaning hardware" as CleanHW
 
-note over User, Clean : after UC-01; right side is inferred by probe
+note over User, Clean : surrounded = body-fixed front ∧ left ∧ right\n(probe uses front if Forward toggle, back if Backward)\nescape reverse ≠ toggled cruise; travelToggle preserved
 
-alt [E2 sensor/probe dropout during reverse]
-  Obs -> Perception : ObstacleStateChanged(front=stale, left=current)
-  Obs -> Perception : ObstacleStateChanged(probePose=right, front=stale)
-  Perception -> Nav : FusedObstacleSnapshot(invalid)
-  note over Perception, Nav : next: UC-08
-else [typical or A1 or A2 or E1 or E3]
+alt [typical Forward toggle]
   Obs -> Perception : ObstacleStateChanged(front=blocked, left=blocked)
   Perception -> Nav : RequestRightSideProbe(reason=surroundedCheck)
-  Nav -> Motors : MotionCommand(action=probeRightSide)
-  Obs -> Perception : ObstacleStateChanged(probePose=right, front=blocked)
-  Perception -> Nav : FusedObstacleSnapshot(surrounded)
-  Nav -> Motors : MotionCommand(action=restoreHeading)
-  Nav -> Motors : MotionCommand(forbidForward)
   Nav -> Clean : SuspendCleaningForManeuver()
   Clean -> CleanHW : CleaningCommand(suspend)
-  note right of Nav : escape requires reverse; not a 180-degree turn plus forward travel
-
-  alt [A2 intermittent surrounded flicker]
-    loop [until stable lateral opening or fallback]
-      Nav -> Motors : MotionCommand(reverse)
-      Obs -> Perception : ObstacleStateChanged(front=current, left=flicker)
-      Perception -> Nav : RequestRightSideProbe(reason=lateralOpeningCheck)
-      Nav -> Motors : MotionCommand(action=probeRightSide)
-      Obs -> Perception : ObstacleStateChanged(probePose=right, front=flicker)
-      Perception -> Nav : FusedObstacleSnapshot(reverseReadings)
-      Nav -> Motors : MotionCommand(action=restoreEscapeHeading)
-      Nav -> Motors : MotionCommand(continueReverse)
-    end
-  else [typical reverse segment]
-    Nav -> Motors : MotionCommand(reverse)
-    Obs -> Perception : ObstacleStateChanged(front=current, left=current)
-    Perception -> Nav : FusedObstacleSnapshot(reverseReadings)
-    loop [until lateral opening or max backup]
-      Obs -> Perception : ObstacleStateChanged(front=current, left=current)
-      Perception -> Nav : RequestRightSideProbe(reason=lateralOpeningCheck)
-      Nav -> Motors : MotionCommand(action=probeRightSide)
-      Obs -> Perception : ObstacleStateChanged(probePose=right, front=current)
-      Perception -> Nav : FusedObstacleSnapshot(reverseCycleSample)
-      Nav -> Motors : MotionCommand(action=restoreEscapeHeading)
-      Nav -> Motors : MotionCommand(continueReverse)
-    end
-    note right of Nav : forward-only clear does not end reverse while left and probed right remain closed
+  Nav -> Motors : MotionCommand(action=probeRightSide)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, front=blocked)
+  Perception -> Nav : FusedObstacleSnapshot(surrounded=true)
+  Nav -> Motors : MotionCommand(action=restoreHeading)
+  Nav -> Motors : MotionCommand(reverseEscapeSegment)
+  note over Nav, Motors : back sensor not leading sector during escape reverse
+  Obs -> Perception : ObstacleStateChanged(leadingSector=safe)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
+  Nav -> Motors : MotionCommand(forward)
+  Nav -> Clean : ResumeCleaningAfterManeuver()
+  Clean -> CleanHW : CleaningCommand(normal)
+  note over Nav, Motors : next: UC-02; travelToggle unchanged
+else [typical Backward toggle]
+  Obs -> Perception : ObstacleStateChanged(front=blocked, left=blocked)
+  Perception -> Nav : RequestRightSideProbe(reason=surroundedCheck)
+  Nav -> Clean : SuspendCleaningForManeuver()
+  Clean -> CleanHW : CleaningCommand(suspend)
+  Nav -> Motors : MotionCommand(action=probeRightSide)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, back=blocked)
+  Perception -> Nav : FusedObstacleSnapshot(surrounded=true)
+  Nav -> Motors : MotionCommand(action=restoreHeading)
+  Nav -> Motors : MotionCommand(reverseEscapeSegment)
+  Obs -> Perception : ObstacleStateChanged(leadingSector=safe)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
+  Nav -> Motors : MotionCommand(reverse)
+  Nav -> Clean : ResumeCleaningAfterManeuver()
+  Clean -> CleanHW : CleaningCommand(normal)
+  note over Nav, Motors : next: UC-02; travelToggle unchanged
+else [A1 repeated surrounded]
+  loop [until leading sector clears]
+    Obs -> Perception : ObstacleStateChanged(surrounded=true)
+    Perception -> Nav : FusedObstacleSnapshot(surrounded=true)
+    Nav -> Motors : MotionCommand(reverseEscapeSegment)
+    Obs -> Perception : ObstacleStateChanged(leadingSector=stillBlocked)
+    Perception -> Nav : FusedObstacleSnapshot(leadingSectorBlocked)
   end
-
-  alt [typical lateral opening prefer right]
-    Obs -> Perception : ObstacleStateChanged(leftOpening=true)
-    Obs -> Perception : ObstacleStateChanged(probePose=right, front=clear)
-    Perception -> Nav : FusedObstacleSnapshot(lateralOpening, rightTurnViable)
-    Nav -> Motors : MotionCommand(lateralEscapeRight)
-    Obs -> Perception : ObstacleStateChanged(front=safe, left=current)
-    Perception -> Nav : FusedObstacleSnapshot(forwardSafe)
-    Nav -> Motors : MotionCommand(forward)
-    Nav -> Clean : ResumeCleaningAfterManeuver()
-    Clean -> CleanHW : CleaningCommand(active)
-    note over Nav, Motors : next: UC-02
-  else [A1 prefer right blocked turn left]
-    Obs -> Perception : ObstacleStateChanged(leftOpening=true)
-    Obs -> Perception : ObstacleStateChanged(probePose=right, front=blocked)
-    Perception -> Nav : FusedObstacleSnapshot(leftTurnViable)
-    Nav -> Motors : MotionCommand(lateralEscapeLeft)
-    Obs -> Perception : ObstacleStateChanged(front=safe, left=current)
-    Perception -> Nav : FusedObstacleSnapshot(forwardSafe)
-    Nav -> Motors : MotionCommand(forward)
-    Nav -> Clean : ResumeCleaningAfterManeuver()
-    Clean -> CleanHW : CleaningCommand(active)
-    note over Nav, Motors : next: UC-02
-  else [E1 max backup no lateral opening]
-    Obs -> Perception : ObstacleStateChanged(leftOpening=false)
-    Obs -> Perception : ObstacleStateChanged(probePose=right, front=blocked)
-    Perception -> Nav : FusedObstacleSnapshot(noLateralOpening)
-    Nav -> Motors : MotionCommand(fallbackTBD)
-  else [E3 residual symmetric trap]
-    Obs -> Perception : ObstacleStateChanged(noLateralOpeningWithinLimits)
-    Obs -> Perception : ObstacleStateChanged(probePose=right, front=noOpeningWithinLimits)
-    Perception -> Nav : FusedObstacleSnapshot(noLateralOpening)
-    note over Nav : global mitigations TBD
-  end
+else [E1 escape cannot complete]
+  Obs -> Perception : ObstacleStateChanged(surrounded=true, escapePath=invalid)
+  Perception -> Nav : FusedObstacleSnapshot(invalid)
+  Nav -> Motors : MotionCommand(stopOrFallbackTBD)
+  note over Perception, Nav : next: UC-08 (TBD)
 end
 
 @enduml

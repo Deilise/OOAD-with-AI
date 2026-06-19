@@ -39,7 +39,8 @@ struct Scenario {
 
 class RecordingMotionSink final : public rvc::MotionCommandSink {
 public:
-    void MotionCommand(rvc::MotionCommand command) override {
+    void MotionCommand(rvc::MotionCommand command,
+                       rvc::ProbeSensor /*probeSensor*/ = rvc::ProbeSensor::TBD) override {
         commands.push_back(command);
     }
 
@@ -58,22 +59,22 @@ public:
 const char* toString(rvc::MotionCommand command) {
     switch (command) {
     case rvc::MotionCommand::forward: return "MotionCommand(forward)";
+    case rvc::MotionCommand::reverse: return "MotionCommand(reverse)";
+    case rvc::MotionCommand::forwardOrReversePerToggle: return "MotionCommand(forwardOrReversePerToggle)";
     case rvc::MotionCommand::turnRight: return "MotionCommand(turnRight)";
     case rvc::MotionCommand::turnLeft: return "MotionCommand(turnLeft)";
-    case rvc::MotionCommand::reverse: return "MotionCommand(reverse)";
-    case rvc::MotionCommand::continueReverse: return "MotionCommand(continueReverse)";
+    case rvc::MotionCommand::reverseEscapeSegment: return "MotionCommand(reverseEscapeSegment)";
     case rvc::MotionCommand::probeRightSide: return "MotionCommand(probeRightSide)";
     case rvc::MotionCommand::restoreHeading: return "MotionCommand(restoreHeading)";
-    case rvc::MotionCommand::restoreEscapeHeading: return "MotionCommand(restoreEscapeHeading)";
-    case rvc::MotionCommand::lateralEscapeRight: return "MotionCommand(lateralEscapeRight)";
-    case rvc::MotionCommand::lateralEscapeLeft: return "MotionCommand(lateralEscapeLeft)";
-    case rvc::MotionCommand::forbidForward: return "MotionCommand(forbidForward)";
+    case rvc::MotionCommand::spin540Clockwise: return "MotionCommand(spin540Clockwise)";
+    case rvc::MotionCommand::spin540CounterClockwise: return "MotionCommand(spin540CounterClockwise)";
     case rvc::MotionCommand::stop: return "MotionCommand(stop)";
-    case rvc::MotionCommand::fallbackTBD: return "MotionCommand(fallbackTBD)";
-    case rvc::MotionCommand::fallbackOrEscalateTBD: return "MotionCommand(fallbackOrEscalateTBD)";
     case rvc::MotionCommand::stopOrFallbackTBD: return "MotionCommand(stopOrFallbackTBD)";
-    case rvc::MotionCommand::gradualOrPartialStopTBD: return "MotionCommand(gradualOrPartialStopTBD)";
+    case rvc::MotionCommand::stopOrSafeHold: return "MotionCommand(stopOrSafeHold)";
+    case rvc::MotionCommand::fallbackOrEscalateTBD: return "MotionCommand(fallbackOrEscalateTBD)";
     case rvc::MotionCommand::suppressMotionTBD: return "MotionCommand(suppressMotionTBD)";
+    case rvc::MotionCommand::holdOrReManeuverTBD: return "MotionCommand(holdOrReManeuverTBD)";
+    case rvc::MotionCommand::TBD: return "MotionCommand(TBD)";
     }
     return "MotionCommand(unknown)";
 }
@@ -82,10 +83,8 @@ const char* toString(rvc::CleaningCommand command) {
     switch (command) {
     case rvc::CleaningCommand::normal: return "CleaningCommand(normal)";
     case rvc::CleaningCommand::boost: return "CleaningCommand(boost)";
-    case rvc::CleaningCommand::active: return "CleaningCommand(active)";
     case rvc::CleaningCommand::suspend: return "CleaningCommand(suspend)";
-    case rvc::CleaningCommand::unchangedOrDeferredTBD:
-        return "CleaningCommand(unchangedOrDeferredTBD)";
+    case rvc::CleaningCommand::TBD: return "CleaningCommand(TBD)";
     }
     return "CleaningCommand(unknown)";
 }
@@ -105,11 +104,14 @@ const char* toString(ActionKind kind) {
 
 const char* toString(rvc::ObstacleEventKind event) {
     switch (event) {
-    case rvc::ObstacleEventKind::frontLeftSample: return "frontLeftSample";
+    case rvc::ObstacleEventKind::frontSample: return "frontSample";
+    case rvc::ObstacleEventKind::leftSample: return "leftSample";
+    case rvc::ObstacleEventKind::backSample: return "backSample";
     case rvc::ObstacleEventKind::probePoseRightSample: return "probePoseRightSample";
-    case rvc::ObstacleEventKind::forwardBlocked: return "forwardBlocked";
-    case rvc::ObstacleEventKind::forwardSafe: return "forwardSafe";
-    case rvc::ObstacleEventKind::forwardSafeAfterManeuver: return "forwardSafeAfterManeuver";
+    case rvc::ObstacleEventKind::leadingSectorBlocked: return "leadingSectorBlocked";
+    case rvc::ObstacleEventKind::leadingSectorSafe: return "leadingSectorSafe";
+    case rvc::ObstacleEventKind::dustDetected: return "dustDetected";
+    case rvc::ObstacleEventKind::dustCleared: return "dustCleared";
     case rvc::ObstacleEventKind::surrounded: return "surrounded";
     case rvc::ObstacleEventKind::leftOpening: return "leftOpening";
     case rvc::ObstacleEventKind::lateralOpening: return "lateralOpening";
@@ -122,7 +124,6 @@ const char* toString(rvc::ObstacleEventKind event) {
     case rvc::ObstacleEventKind::partialStale: return "partialStale";
     case rvc::ObstacleEventKind::recovered: return "recovered";
     case rvc::ObstacleEventKind::ambiguous: return "ambiguous";
-    case rvc::ObstacleEventKind::dropoutDuringReverse: return "dropoutDuringReverse";
     case rvc::ObstacleEventKind::TBD: return "TBD";
     }
     return "unknown";
@@ -238,10 +239,19 @@ void runActions(const std::vector<Action>& actions, rvc::RvcSoftwareController& 
         case ActionKind::ServiceReset:
             controller.sessionIntentPort().requestServiceOrReset();
             break;
-        case ActionKind::Obstacle:
-            controller.obstacleInputPort().ObstacleStateChanged(
-                {action.obstacle, action.probePose, time++, action.frontBlocked, action.leftBlocked});
+        case ActionKind::Obstacle: {
+            rvc::ObstacleEvent event;
+            event.kind = action.obstacle;
+            event.probePose = action.probePose;
+            event.sampleTime = time++;
+            event.frontBlocked = action.frontBlocked;
+            event.leftBlocked = action.leftBlocked;
+            if (action.obstacle == rvc::ObstacleEventKind::probePoseRightSample) {
+                event.probeSensor = rvc::ProbeSensor::front;
+            }
+            controller.obstacleInputPort().ObstacleStateChanged(event);
             break;
+        }
         case ActionKind::Dust:
             controller.dustInputPort().DustSignalUpdated(action.dust);
             break;
@@ -277,79 +287,95 @@ std::vector<Scenario> scenarios() {
         {"TC-01", "Initialize enters safe inactive state",
          {initialize()}, {MC::stop}, {CC::suspend}, {}},
         {"TC-02", "Start and cruise forward while cleaning",
-         {start(), obstacle(OE::forwardSafe)}, {MC::forward}, {CC::active}, {}},
-        {"TC-03", "Dust boost returns to normal while active",
-         {start(), dust(DS::aboveThreshold)}, {}, {CC::boost, CC::normal}, {}},
-        {"TC-04", "Dust boost is deferred while session is inactive",
-         {dust(DS::aboveThreshold)}, {}, {CC::unchangedOrDeferredTBD}, {}},
-        {"TC-05", "Invalid dust signal keeps normal cleaning",
-         {start(), dust(DS::invalid)}, {}, {CC::normal}, {}},
+         {start(), obstacle(OE::leadingSectorSafe)},
+         {MC::forward, MC::forward}, {CC::normal, CC::normal}, {}},
+        {"TC-03", "Dust signal stores without immediate boost command",
+         {start(), dust(DS::aboveThreshold)}, {MC::forward}, {}, {}},
+        {"TC-04", "Dust signal is ignored while session is inactive",
+         {dust(DS::aboveThreshold)}, {}, {}, {}},
+        {"TC-05", "Invalid dust signal stores without cleaning command",
+         {start(), dust(DS::invalid)}, {MC::forward}, {}, {}},
         {"TC-06", "Stop session stops motion and suspends cleaning",
-         {start(), stop()}, {MC::stop}, {CC::suspend}, {}},
+         {start(), stop()}, {MC::forward, MC::stop}, {CC::normal, CC::suspend}, {}},
         {"TC-07", "Resume after stop re-enters forward cleaning",
-         {start(), stop(), resume(), obstacle(OE::forwardSafe)}, {MC::stop, MC::forward}, {CC::suspend, CC::active}, {}},
+         {start(), stop(), resume(), obstacle(OE::leadingSectorSafe)},
+         {MC::forward, MC::stop, MC::forward, MC::forward},
+         {CC::normal, CC::suspend, CC::normal}, {}},
         {"TC-08", "Service/reset request enters inactive safe state",
-         {start(), serviceReset()}, {MC::stop}, {CC::suspend}, {}},
+         {start(), serviceReset()}, {MC::forward, MC::stop}, {CC::normal, CC::suspend}, {}},
         {"TC-09", "Invalid obstacle data triggers full fault stop",
-         {start(), obstacle(OE::invalidOrStale)}, {MC::stop}, {CC::suspend}, {}},
-        {"TC-10", "Partial stale obstacle data uses gradual stop",
-         {start(), obstacle(OE::partialStale)}, {MC::gradualOrPartialStopTBD}, {}, {}},
+         {start(), obstacle(OE::invalidOrStale)}, {MC::forward, MC::stop}, {CC::normal, CC::suspend}, {}},
+        {"TC-10", "Partial stale obstacle data uses safe hold",
+         {start(), obstacle(OE::partialStale)}, {MC::forward, MC::stopOrSafeHold}, {}, {}},
         {"TC-11", "Recovery snapshot is accepted without new command",
-         {start(), obstacle(OE::recovered)}, {}, {}, {}},
-        {"TC-12", "Forward blocked probes right then chooses right turn",
-         {start(), obstacle(OE::forwardBlocked), obstacle(OE::probePoseRightSample, rvc::ProbePose::right, false)},
-         {MC::probeRightSide, MC::restoreHeading, MC::turnRight}, {CC::suspend}, {}},
+         {start(), obstacle(OE::recovered)}, {MC::forward}, {}, {}},
+        {"TC-12", "Leading sector blocked probes right then chooses right turn",
+         {start(), obstacle(OE::leadingSectorBlocked),
+          obstacle(OE::probePoseRightSample, rvc::ProbePose::right, false)},
+         {MC::forward, MC::probeRightSide, MC::restoreHeading, MC::turnRight}, {CC::normal, CC::suspend}, {}},
         {"TC-13", "Probed right blocked chooses left turn",
-         {start(), obstacle(OE::forwardBlocked), obstacle(OE::probePoseRightSample, rvc::ProbePose::right, true)},
-         {MC::probeRightSide, MC::restoreHeading, MC::turnLeft}, {CC::suspend}, {}},
-        {"TC-14", "Probe timeout uses stop or fallback",
-         {start(), obstacle(OE::invalidOrTimeout)}, {MC::stopOrFallbackTBD}, {CC::suspend}, {}},
-        {"TC-15", "Front left and probed right blocked starts reverse escape",
-         {start(), obstacle(OE::forwardBlocked, rvc::ProbePose::none, false, true),
+         {start(), obstacle(OE::leadingSectorBlocked),
           obstacle(OE::probePoseRightSample, rvc::ProbePose::right, true)},
-         {MC::probeRightSide, MC::restoreHeading, MC::forbidForward, MC::reverse}, {CC::suspend}, {}},
+         {MC::forward, MC::probeRightSide, MC::restoreHeading, MC::turnLeft}, {CC::normal, CC::suspend}, {}},
+        {"TC-14", "Probe timeout uses stop or fallback",
+         {start(), obstacle(OE::invalidOrTimeout)}, {MC::forward, MC::stopOrFallbackTBD}, {CC::normal, CC::suspend}, {}},
+        {"TC-15", "Front left and probed right blocked starts reverse escape",
+         {start(), obstacle(OE::leadingSectorBlocked, rvc::ProbePose::none, false, true),
+          obstacle(OE::probePoseRightSample, rvc::ProbePose::right, true)},
+         {MC::forward, MC::probeRightSide, MC::restoreHeading, MC::reverseEscapeSegment},
+         {CC::normal, CC::suspend}, {}},
         {"TC-16", "Reverse readings continue backing up",
-         {start(), obstacle(OE::reverseReadings)}, {MC::restoreEscapeHeading, MC::continueReverse}, {}, {}},
+         {start(), obstacle(OE::reverseReadings)}, {MC::forward, MC::reverseEscapeSegment}, {}, {}},
         {"TC-17", "Reverse cycle sample continues reverse segment",
-         {start(), obstacle(OE::reverseCycleSample)}, {MC::probeRightSide, MC::restoreEscapeHeading, MC::continueReverse}, {}, {}},
-        {"TC-18", "Lateral opening escapes right",
-         {start(), obstacle(OE::lateralOpening)}, {MC::lateralEscapeRight}, {}, {}},
-        {"TC-19", "Left opening escapes left",
-         {start(), obstacle(OE::leftOpening)}, {MC::lateralEscapeLeft}, {}, {}},
+         {start(), obstacle(OE::reverseCycleSample)},
+         {MC::forward, MC::reverseEscapeSegment, MC::probeRightSide}, {}, {}},
+        {"TC-18", "Lateral opening turns right",
+         {start(), obstacle(OE::lateralOpening)},
+         {MC::forward, MC::restoreHeading, MC::turnRight}, {}, {}},
+        {"TC-19", "Left opening turns left",
+         {start(), obstacle(OE::leftOpening)},
+         {MC::forward, MC::restoreHeading, MC::turnLeft}, {}, {}},
         {"TC-20", "Max backup without opening uses fallback",
-         {start(), obstacle(OE::noLateralOpening)}, {MC::fallbackTBD}, {}, {}},
+         {start(), obstacle(OE::noLateralOpening)},
+         {MC::forward, MC::fallbackOrEscalateTBD}, {}, {}},
         {"TC-21", "No lateral opening within limits uses fallback",
-         {start(), obstacle(OE::noLateralOpeningWithinLimits)}, {MC::fallbackTBD}, {}, {}},
-        {"TC-22", "Dropout during reverse enters UC-08 style stop",
-         {start(), obstacle(OE::dropoutDuringReverse)}, {MC::stop}, {CC::suspend}, {}},
+         {start(), obstacle(OE::noLateralOpeningWithinLimits)},
+         {MC::forward, MC::fallbackOrEscalateTBD}, {}, {}},
+        {"TC-22", "Invalid data during reverse enters UC-08 style stop",
+         {start(), obstacle(OE::invalidOrStale)}, {MC::forward, MC::stop}, {CC::normal, CC::suspend}, {}},
         {"TC-23", "Ambiguous obstacle snapshot waits for later policy",
-         {start(), obstacle(OE::ambiguous)}, {}, {}, {}},
-        {"TC-24", "Front left sample builds consistency snapshot only",
-         {start(), obstacle(OE::frontLeftSample)}, {}, {}, {}},
-        {"TC-25", "Ambiguous probe alignment waits for later policy",
-         {start(), obstacle(OE::ambiguous)}, {}, {}, {}},
-        {"TC-26", "Forward safe after maneuver resumes cleaning",
-         {start(), obstacle(OE::forwardSafeAfterManeuver)}, {MC::forward}, {CC::active}, {}},
-        {"TC-27", "Forward blocked after maneuver requests right-side probe",
-         {start(), obstacle(OE::forwardBlocked)}, {MC::probeRightSide}, {CC::suspend}, {}},
+         {start(), obstacle(OE::ambiguous)}, {MC::forward}, {}, {}},
+        {"TC-24", "Front sample builds valid snapshot only",
+         {start(), obstacle(OE::frontSample, rvc::ProbePose::none, true)}, {MC::forward}, {}, {}},
+        {"TC-25", "Dust detected starts dust maneuver spin and boost",
+         {start(), obstacle(OE::dustDetected)},
+         {MC::forward, MC::stop, MC::spin540Clockwise}, {CC::normal, CC::boost}, {}},
+        {"TC-26", "Leading sector safe resumes cleaning",
+         {start(), obstacle(OE::leadingSectorSafe)},
+         {MC::forward, MC::forward}, {CC::normal, CC::normal}, {}},
+        {"TC-27", "Leading sector blocked requests right-side probe",
+         {start(), obstacle(OE::leadingSectorBlocked)},
+         {MC::forward, MC::probeRightSide}, {CC::normal, CC::suspend}, {}},
         {"TC-28", "Going back then turning: reverse before right escape",
          {start(), obstacle(OE::surrounded), obstacle(OE::reverseReadings), obstacle(OE::lateralOpening)},
-         {MC::restoreHeading, MC::forbidForward, MC::reverse, MC::restoreEscapeHeading, MC::continueReverse,
-          MC::lateralEscapeRight},
-         {CC::suspend},
-         {"Required going back -> turning test: reverse happens before lateralEscapeRight."}},
+         {MC::forward, MC::restoreHeading, MC::reverseEscapeSegment, MC::reverseEscapeSegment,
+          MC::restoreHeading, MC::turnRight},
+         {CC::normal, CC::suspend},
+         {"Required going back -> turning test: reverse happens before turnRight."}},
         {"TC-29", "Going back then left turning after left opening",
          {start(), obstacle(OE::surrounded), obstacle(OE::reverseCycleSample), obstacle(OE::leftOpening)},
-         {MC::restoreHeading, MC::forbidForward, MC::reverse, MC::restoreEscapeHeading, MC::continueReverse,
-          MC::lateralEscapeLeft},
-         {CC::suspend},
-         {"Covers reverse segment followed by left lateral escape."}},
-        {"TC-30", "Full mission path with boost, trap escape, resume, stop",
-         {initialize(), start(), obstacle(OE::forwardSafe), dust(DS::aboveThreshold), obstacle(OE::surrounded),
-          obstacle(OE::reverseCycleSample), obstacle(OE::lateralOpening), obstacle(OE::forwardSafe), stop()},
-         {MC::stop, MC::forward, MC::restoreHeading, MC::forbidForward, MC::reverse, MC::restoreEscapeHeading,
-          MC::continueReverse, MC::lateralEscapeRight, MC::forward, MC::stop},
-         {CC::suspend, CC::active, CC::boost, CC::normal, CC::suspend, CC::active, CC::suspend},
+         {MC::forward, MC::restoreHeading, MC::reverseEscapeSegment, MC::reverseEscapeSegment,
+          MC::restoreHeading, MC::turnLeft},
+         {CC::normal, CC::suspend},
+         {"Covers reverse segment followed by left turn."}},
+        {"TC-30", "Full mission path with dust maneuver, trap escape, resume, stop",
+         {initialize(), start(), obstacle(OE::leadingSectorSafe), obstacle(OE::dustDetected),
+          obstacle(OE::dustCleared), obstacle(OE::surrounded), obstacle(OE::reverseCycleSample),
+          obstacle(OE::lateralOpening), obstacle(OE::leadingSectorSafe), stop()},
+         {MC::stop, MC::forward, MC::forward, MC::stop, MC::spin540Clockwise, MC::restoreHeading,
+          MC::reverseEscapeSegment, MC::reverseEscapeSegment, MC::probeRightSide, MC::restoreHeading,
+          MC::turnRight, MC::forward, MC::stop},
+         {CC::suspend, CC::normal, CC::normal, CC::boost, CC::normal, CC::suspend, CC::normal, CC::suspend},
          {"End-to-end simulator smoke test."}},
     };
 }

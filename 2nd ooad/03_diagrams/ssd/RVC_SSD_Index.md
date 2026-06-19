@@ -1,6 +1,6 @@
 # Roomba RVC — System sequence diagram (SSD) gallery
 
-Companion to **`../../02_use_cases/RVC_SW_Controller_UseCases.md`**. Each use case has **one SSD** with **typical**, **alternative**, and **exceptional** courses in **`alt` / `else` / `loop`** frames (PlantUML). This SSD set is aligned with SRS/use cases v0.6.0: the RVC has direct front/left obstacle sensing, no dedicated right-side sensor, and infers right-side status through a high-level right-side probe.
+Companion to **`../../02_use_cases/RVC_SW_Controller_UseCases.md`**. Each use case has **one SSD** with **typical**, **alternative**, and **exceptional** courses in **`alt` / `else` / `loop`** frames (PlantUML). This SSD set is aligned with SRS/use cases **v0.7.2**: **`travelToggle`** swaps the leading travel edge (front vs back), **Normal / Boost / Suspended** cleaning, **dust maneuver** (540° spin + toggle), and **right-side probe** using the **front** sensor when Forward toggle and the **back** sensor when Backward toggle.
 
 **Domain model (middle layer):** [RVC_Domain_Diagram.md](../domain/RVC_Domain_Diagram.md)
 
@@ -15,12 +15,12 @@ Companion to **`../../02_use_cases/RVC_SW_Controller_UseCases.md`**. Each use ca
 | UC | Use case | Diagram |
 |----|----------|---------|
 | UC-01 | Start automatic cleaning session | [UC-01 SSD](UC-01_SSD.md) |
-| UC-02 | Cruise forward while cleaning | [UC-02 SSD](UC-02_SSD.md) |
-| UC-03 | Avoid obstacle (forward blocked, not surrounded) | [UC-03 SSD](UC-03_SSD.md) |
+| UC-02 | Cruise in normal mode while cleaning | [UC-02 SSD](UC-02_SSD.md) |
+| UC-03 | Avoid obstacle (leading sector blocked, not surrounded) | [UC-03 SSD](UC-03_SSD.md) |
 | UC-04 | Avoid obstacle when right turn is blocked | [UC-04 SSD](UC-04_SSD.md) |
 | UC-05 | Escape when surrounded | [UC-05 SSD](UC-05_SSD.md) |
-| UC-06 | Boost cleaning when dust is high | [UC-06 SSD](UC-06_SSD.md) |
-| UC-07 | Resume forward cleaning after a maneuver | [UC-07 SSD](UC-07_SSD.md) |
+| UC-06 | Perform dust maneuver (spin, boost, toggle travel) | [UC-06 SSD](UC-06_SSD.md) |
+| UC-07 | Resume normal cruise after a maneuver | [UC-07 SSD](UC-07_SSD.md) |
 | UC-08 | Handle missing / invalid / stale obstacle or probe data | [UC-08 SSD](UC-08_SSD.md) |
 | UC-09 | Build consistent fused obstacle picture | [UC-09 SSD](UC-09_SSD.md) |
 
@@ -34,25 +34,23 @@ Companion to **`../../02_use_cases/RVC_SW_Controller_UseCases.md`**. Each use ca
 
 Cross–use-case handoffs appear in **notes** only (e.g. `next: UC-02`).
 
-## Change summary for SRS/use case v0.6.0 alignment
+## Change summary for SRS/use case v0.7.2 alignment
 
 ### Changed
 
-- UC-03, UC-04, UC-05, UC-08, and UC-09 SSDs now show direct **front / left** obstacle sensors instead of direct front/left/right sensing.
-- Right-side decisions now come from direct sensor observations taken during the probe pose, shown as `ObstacleStateChanged(probePose=right, front=...)`, requested through high-level `MotionCommand(action=probeRightSide)` and `MotionCommand(action=restoreHeading)` interactions.
-- UC-05 still treats surrounded as front + left + right blocked, but right is now inferred by probe.
-- UC-05 now explicitly notes that surrounded escape requires a reverse segment and is not satisfied by a 180-degree turn followed by forward travel.
-- UC-08 now covers stale/invalid observations during the right-side probe as well as stale/invalid direct obstacle data.
-- UC-09 now shows fusion/snapshot logic combining direct front/left samples with probe-pose observations.
+- All affected SSDs now include **back** obstacle sensor where `travelToggle` is Backward.
+- **Leading travel sector** replaces forward-only cruise/avoidance/resume wording.
+- **Right-side probe** observations use `front=` when Forward toggle and `back=` when Backward toggle.
+- **UC-05** exit frames split by toggle: `MotionCommand(forward)` vs `MotionCommand(reverse)`; back used for probe during escape reverse when toggled Backward.
+- **UC-06** rewritten for dust maneuver: stop, 540° spin, Boost loop, `ToggleTravelDirection`, resume per toggle.
+- **UC-01** notes initial `travelToggle=Forward`, `cleaningMode=Normal`.
 
-### Added
+### Preserved
 
-- Right-side probe messages in UC-03, UC-04, UC-05, and UC-09.
-- Probe timeout/invalid path in UC-04 and UC-08.
-- Markdown wrapper descriptions for probe-related frames.
-- Organized local links for SSD wrapper pages and source/rendered diagram files.
+- System remains a **black box**; external actors only.
+- Surrounded trigger still body-fixed front + left + right (from probe).
+- PlantUML source + PNG render workflow unchanged.
 
-### Removed
+### Prior revisions
 
-- Direct right-side obstacle sensor assumptions from affected SSDs.
-- Wording that treated right-turn viability as direct right sensor validity.
+- **v0.6.0:** right-side probe replaced dedicated right sensor; surrounded escape reverse segment.

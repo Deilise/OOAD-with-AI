@@ -6,39 +6,44 @@ skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 autonumber
 
-title UC-02 — Cruise forward while cleaning\n(system sequence diagram)
+title UC-02 — Cruise in normal mode while cleaning\n(system sequence diagram)
 
 actor "Home user\n(beneficiary)" as User
-participant "Direct front / left\nobstacle sensors" as Obs
-participant "Dust / debris\nsensor" as Dust
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(black box)" #E8F4FF
   participant "System" as Sys
 end box
 participant "Drive motors /\nwheels" as Drv
 participant "Cleaning hardware\n(vacuum, brushes, mop)" as Cln
 
-note over User, Sys : after UC-01
+note over User, Sys : after UC-01; travelToggle=Forward initially
 
 loop [cruise cycle until stop or other UC]
-  alt [typical]
+  alt [typical Forward toggle]
     Obs -> Sys : ObstacleStateChanged(front=safe, left=current)
     activate Sys
     Sys -> Drv : MotionCommand(forward)
     Sys -> Cln : CleaningCommand(normal)
     deactivate Sys
-  else [A1 dust boost concurrent]
-    Obs -> Sys : ObstacleStateChanged(front=safe, left=current)
+  else [A1 toggled Backward cruise]
+    Obs -> Sys : ObstacleStateChanged(back=safe, left=current)
     activate Sys
-    Sys -> Drv : MotionCommand(forward)
-    Dust -> Sys : DustSignalUpdated(aboveThreshold)
-    Sys -> Cln : CleaningCommand(boost)
+    Sys -> Drv : MotionCommand(reverse)
+    Sys -> Cln : CleaningCommand(normal)
+    deactivate Sys
+  else [A2 after dust maneuver toggle]
+    note over Sys : travelToggle flipped by UC-06
+    Obs -> Sys : ObstacleStateChanged(leadingSector=safe)
+    activate Sys
+    Sys -> Drv : MotionCommand(forwardOrReversePerToggle)
+    Sys -> Cln : CleaningCommand(normal)
     deactivate Sys
   else [E1 stale or missing obstacle data]
-    Obs -> Sys : ObstacleStateChanged(frontOrLeft=invalidOrStale)
+    Obs -> Sys : ObstacleStateChanged(leadingSector=invalidOrStale)
     note over Obs, Sys : next: UC-08
   end
 end
 
-note over Obs, Cln : repeat until UC-03, UC-04, UC-05, or stop
+note over Obs, Cln : repeat until UC-03, UC-04, UC-05, UC-06, or stop
 
 @enduml

@@ -18,7 +18,7 @@ public:
     void requestServiceOrReset() override;
 
 private:
-    void notifySessionStateChanged();
+    void notifySessionStateChanged(bool initializeDefaults);
 
     bool sessionActive_{false};
     SessionSource sessionSource_{SessionSource::TBD};

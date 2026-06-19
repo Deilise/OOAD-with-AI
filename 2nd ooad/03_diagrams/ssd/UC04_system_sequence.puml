@@ -9,45 +9,54 @@ autonumber
 title UC-04 — Avoid obstacle when right turn blocked\n(system sequence diagram)
 
 actor "Home user\n(beneficiary)" as User
-participant "Direct front / left\nobstacle sensors" as Obs
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(black box)" #E8F4FF
   participant "System" as Sys
 end box
 participant "Drive motors /\nwheels" as Drv
 participant "Cleaning hardware" as Cln
 
-note over User, Sys : after UC-01; right is probed, left viable
+note over User, Sys : after UC-01; probe uses front if Forward toggle, back if Backward
 
-Obs -> Sys : ObstacleStateChanged(front=blocked, left=viable)
+Obs -> Sys : ObstacleStateChanged(leadingSector=blocked, left=viable)
 activate Sys
 Sys -> Cln : CleaningCommand(suspend)
 Sys -> Drv : MotionCommand(action=probeRightSide)
 
-alt [typical probed right not viable turn left]
+alt [typical probed right not viable turn left Forward toggle]
   Obs -> Sys : ObstacleStateChanged(probePose=right, front=blocked)
   Sys -> Drv : MotionCommand(action=restoreHeading)
   Sys -> Drv : MotionCommand(turnLeft)
-  Obs -> Sys : ObstacleStateChanged(front=safe, left=current)
+  Obs -> Sys : ObstacleStateChanged(leadingSector=safe, left=current)
   Sys -> Drv : MotionCommand(forward)
-  Sys -> Cln : CleaningCommand(active)
+  Sys -> Cln : CleaningCommand(normal)
+  deactivate Sys
+  note over Sys : next: UC-02
+else [typical probed right not viable turn left Backward toggle]
+  Obs -> Sys : ObstacleStateChanged(probePose=right, back=blocked)
+  Sys -> Drv : MotionCommand(action=restoreHeading)
+  Sys -> Drv : MotionCommand(turnLeft)
+  Obs -> Sys : ObstacleStateChanged(leadingSector=safe, left=current)
+  Sys -> Drv : MotionCommand(reverse)
+  Sys -> Cln : CleaningCommand(normal)
   deactivate Sys
   note over Sys : next: UC-02
 else [A1 neither lateral viable]
-  Obs -> Sys : ObstacleStateChanged(front=blocked, left=notViable)
-  Obs -> Sys : ObstacleStateChanged(probePose=right, front=blocked)
+  Obs -> Sys : ObstacleStateChanged(leadingSector=blocked, left=notViable)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, sensor=blocked)
   Sys -> Drv : MotionCommand(action=restoreHeading)
   Sys -> Drv : MotionCommand(action=fallbackOrEscalateTBD)
   deactivate Sys
   note over Obs, Drv : may trend toward UC-05 (TBD)
 else [A2 right-side probe cannot complete]
-  Obs -> Sys : ObstacleStateChanged(probePose=right, front=timeout)
+  Obs -> Sys : ObstacleStateChanged(probePose=right, sensor=timeout)
   Sys -> Drv : MotionCommand(stopOrFallbackTBD)
   deactivate Sys
   note over Obs, Sys : next: UC-08 or fallback (TBD)
 else [E1 oscillation left and right]
   loop [debounce and maneuver limits TBD]
-    Obs -> Sys : ObstacleStateChanged(front=blocked, left=flicker)
-    Obs -> Sys : ObstacleStateChanged(probePose=right, front=flicker)
+    Obs -> Sys : ObstacleStateChanged(leadingSector=blocked, left=flicker)
+    Obs -> Sys : ObstacleStateChanged(probePose=right, sensor=flicker)
     Sys -> Drv : MotionCommand(suppressMotionTBD)
   end
   deactivate Sys

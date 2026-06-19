@@ -6,10 +6,10 @@ skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 autonumber
 
-title UC-07 — Resume forward cleaning after a maneuver\n(system sequence diagram)
+title UC-07 — Resume normal cruise after a maneuver\n(system sequence diagram)
 
 actor "Home user\n(beneficiary)" as User
-participant "Direct front / left\nobstacle sensors" as Obs
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(black box)" #E8F4FF
   participant "System" as Sys
 end box
@@ -18,16 +18,21 @@ participant "Cleaning hardware" as Cln
 
 note over User, Sys : after UC-03 / UC-04 / UC-05
 
-Obs -> Sys : ObstacleStateChanged(front=safeAfterManeuver)
+Obs -> Sys : ObstacleStateChanged(leadingSector=safeAfterManeuver)
 activate Sys
-Sys -> Drv : MotionCommand(forward)
-Sys -> Cln : CleaningCommand(active)
 
-alt [typical]
+alt [typical Forward toggle]
+  Sys -> Drv : MotionCommand(forward)
+  Sys -> Cln : CleaningCommand(normal)
   deactivate Sys
   note over Sys : next: UC-02
+else [A2 toggled Backward]
+  Sys -> Drv : MotionCommand(reverse)
+  Sys -> Cln : CleaningCommand(normal)
+  deactivate Sys
+  note over Sys : next: UC-02; back leads
 else [A1 immediate re-obstacle]
-  Obs -> Sys : ObstacleStateChanged(front=blocked)
+  Obs -> Sys : ObstacleStateChanged(leadingSector=blocked)
   deactivate Sys
   note over Obs, Sys : next: UC-03 or UC-05
 else [E1 contradictory motion or cleaning]

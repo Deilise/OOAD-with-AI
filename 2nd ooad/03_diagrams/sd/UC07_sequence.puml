@@ -6,10 +6,10 @@ skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 autonumber
 
-title UC-07 - Resume forward cleaning after a maneuver\n(sequence diagram)
+title UC-07 — Resume cruise after maneuver\n(sequence diagram)
 
 actor "Home user\n(beneficiary)" as User
-participant "Direct front / left\nobstacle sensors" as Obs
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
   participant "perception:\nObstaclePerceptionContext" as Perception
   participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
@@ -18,22 +18,32 @@ end box
 participant "Wheel motors\n(left, right)" as Motors
 participant "Cleaning hardware" as CleanHW
 
-note over User, Clean : after UC-03 / UC-04 / UC-05
+note over User, Clean : after UC-03, UC-04, or UC-05 maneuver completes\nresume per preserved travelToggle
 
-Obs -> Perception : ObstacleStateChanged(front=safeAfterManeuver)
-Perception -> Nav : FusedObstacleSnapshot(forwardSafe)
-Nav -> Motors : MotionCommand(forward)
-Nav -> Clean : ResumeCleaningAfterManeuver()
-Clean -> CleanHW : CleaningCommand(active)
-
-alt [typical]
+alt [typical Forward toggle]
+  Obs -> Perception : ObstacleStateChanged(leadingSector=safe, left=current)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
+  Nav -> Motors : MotionCommand(forward)
+  Nav -> Clean : ResumeCleaningAfterManeuver()
+  Clean -> CleanHW : CleaningCommand(normal)
   note over Nav, Motors : next: UC-02
-else [A1 immediate re-obstacle]
-  Obs -> Perception : ObstacleStateChanged(front=blocked)
-  Perception -> Nav : FusedObstacleSnapshot(forwardBlocked)
-  note over Perception, Nav : next: UC-03 or UC-05
-else [E1 contradictory motion or cleaning]
-  note over Nav, Clean : prevented by design; no runtime sequence
+else [typical Backward toggle]
+  Obs -> Perception : ObstacleStateChanged(leadingSector=safe, left=current)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
+  Nav -> Motors : MotionCommand(reverse)
+  Nav -> Clean : ResumeCleaningAfterManeuver()
+  Clean -> CleanHW : CleaningCommand(normal)
+  note over Nav, Motors : next: UC-02
+else [A1 leading sector still blocked]
+  Obs -> Perception : ObstacleStateChanged(leadingSector=blocked)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorBlocked)
+  Nav -> Motors : MotionCommand(holdOrReManeuverTBD)
+  note over Nav, Motors : may re-enter UC-03/04/05 (TBD)
+else [E1 stale leading sector data]
+  Obs -> Perception : ObstacleStateChanged(leadingSector=invalidOrStale)
+  Perception -> Nav : FusedObstacleSnapshot(invalid)
+  Nav -> Motors : MotionCommand(stopOrSafeHold)
+  note over Perception, Nav : next: UC-08
 end
 
 @enduml

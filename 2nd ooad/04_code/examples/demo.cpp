@@ -7,18 +7,22 @@ namespace {
 const char* toString(rvc::MotionCommand command) {
     switch (command) {
     case rvc::MotionCommand::forward: return "MotionCommand(forward)";
+    case rvc::MotionCommand::reverse: return "MotionCommand(reverse)";
+    case rvc::MotionCommand::forwardOrReversePerToggle: return "MotionCommand(forwardOrReversePerToggle)";
     case rvc::MotionCommand::turnRight: return "MotionCommand(turnRight)";
     case rvc::MotionCommand::turnLeft: return "MotionCommand(turnLeft)";
-    case rvc::MotionCommand::reverse: return "MotionCommand(reverse)";
-    case rvc::MotionCommand::continueReverse: return "MotionCommand(continueReverse)";
-    case rvc::MotionCommand::lateralEscapeRight: return "MotionCommand(lateralEscapeRight)";
-    case rvc::MotionCommand::lateralEscapeLeft: return "MotionCommand(lateralEscapeLeft)";
-    case rvc::MotionCommand::forbidForward: return "MotionCommand(forbidForward)";
+    case rvc::MotionCommand::reverseEscapeSegment: return "MotionCommand(reverseEscapeSegment)";
+    case rvc::MotionCommand::probeRightSide: return "MotionCommand(probeRightSide)";
+    case rvc::MotionCommand::restoreHeading: return "MotionCommand(restoreHeading)";
+    case rvc::MotionCommand::spin540Clockwise: return "MotionCommand(spin540Clockwise)";
+    case rvc::MotionCommand::spin540CounterClockwise: return "MotionCommand(spin540CounterClockwise)";
     case rvc::MotionCommand::stop: return "MotionCommand(stop)";
-    case rvc::MotionCommand::fallbackTBD: return "MotionCommand(fallbackTBD)";
-    case rvc::MotionCommand::probeOrBackupTBD: return "MotionCommand(probeOrBackupTBD)";
-    case rvc::MotionCommand::gradualOrPartialStopTBD: return "MotionCommand(gradualOrPartialStopTBD)";
+    case rvc::MotionCommand::stopOrFallbackTBD: return "MotionCommand(stopOrFallbackTBD)";
+    case rvc::MotionCommand::fallbackOrEscalateTBD: return "MotionCommand(fallbackOrEscalateTBD)";
     case rvc::MotionCommand::suppressMotionTBD: return "MotionCommand(suppressMotionTBD)";
+    case rvc::MotionCommand::stopOrSafeHold: return "MotionCommand(stopOrSafeHold)";
+    case rvc::MotionCommand::holdOrReManeuverTBD: return "MotionCommand(holdOrReManeuverTBD)";
+    case rvc::MotionCommand::TBD: return "MotionCommand(TBD)";
     }
     return "MotionCommand(unknown)";
 }
@@ -27,17 +31,16 @@ const char* toString(rvc::CleaningCommand command) {
     switch (command) {
     case rvc::CleaningCommand::normal: return "CleaningCommand(normal)";
     case rvc::CleaningCommand::boost: return "CleaningCommand(boost)";
-    case rvc::CleaningCommand::active: return "CleaningCommand(active)";
     case rvc::CleaningCommand::suspend: return "CleaningCommand(suspend)";
-    case rvc::CleaningCommand::unchangedOrDeferredTBD:
-        return "CleaningCommand(unchangedOrDeferredTBD)";
+    case rvc::CleaningCommand::TBD: return "CleaningCommand(TBD)";
     }
     return "CleaningCommand(unknown)";
 }
 
 class ConsoleMotionSink final : public rvc::MotionCommandSink {
 public:
-    void MotionCommand(rvc::MotionCommand command) override {
+    void MotionCommand(rvc::MotionCommand command,
+                       rvc::ProbeSensor /*probeSensor*/ = rvc::ProbeSensor::TBD) override {
         std::cout << toString(command) << '\n';
     }
 };
@@ -49,6 +52,13 @@ public:
     }
 };
 
+rvc::ObstacleEvent obstacle(rvc::ObstacleEventKind kind, rvc::TimeStamp time) {
+    rvc::ObstacleEvent event;
+    event.kind = kind;
+    event.sampleTime = time;
+    return event;
+}
+
 } // namespace
 
 int main() {
@@ -59,14 +69,17 @@ int main() {
     controller.initialize();
     controller.sessionIntentPort().StartSession(rvc::SessionSource::User);
     controller.obstacleInputPort().ObstacleStateChanged(
-        {rvc::ObstacleEventKind::frame, 1});
-    controller.dustInputPort().DustSignalUpdated(rvc::DustSignal::aboveThreshold);
+        obstacle(rvc::ObstacleEventKind::leadingSectorSafe, 1));
     controller.obstacleInputPort().ObstacleStateChanged(
-        {rvc::ObstacleEventKind::surrounded, 2});
+        obstacle(rvc::ObstacleEventKind::dustDetected, 2));
     controller.obstacleInputPort().ObstacleStateChanged(
-        {rvc::ObstacleEventKind::lateralOpening, 3});
+        obstacle(rvc::ObstacleEventKind::dustCleared, 3));
     controller.obstacleInputPort().ObstacleStateChanged(
-        {rvc::ObstacleEventKind::forwardSafe, 4});
+        obstacle(rvc::ObstacleEventKind::surrounded, 4));
+    controller.obstacleInputPort().ObstacleStateChanged(
+        obstacle(rvc::ObstacleEventKind::lateralOpening, 5));
+    controller.obstacleInputPort().ObstacleStateChanged(
+        obstacle(rvc::ObstacleEventKind::leadingSectorSafe, 6));
     controller.sessionIntentPort().StopSession();
 
     std::cout << "Press Enter to exit..." << '\n';

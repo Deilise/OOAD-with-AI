@@ -2,6 +2,6 @@
 
 [← SSD index](RVC_SSD_Index.md) · Source: `UC04_system_sequence.puml`
 
-**Frames:** right-side probe · `[typical probed right not viable turn left]` · `[A1 neither lateral viable]` · `[A2 right-side probe cannot complete]` → UC-08 / fallback · `[E1 oscillation left and right]` · `loop [debounce and maneuver limits TBD]`
+**Frames:** probe then `[typical turn left]` per toggle · `[A1 neither lateral viable]` · `[A2 probe timeout]` → UC-08 · `[E1 oscillation]`
 
 ![UC-04 system sequence](UC04_system_sequence.png)

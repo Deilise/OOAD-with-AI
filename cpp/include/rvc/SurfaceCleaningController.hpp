@@ -9,9 +9,15 @@ public:
     explicit SurfaceCleaningController(CleaningCommandSink& cleaningSink);
 
     void SessionStateChanged(bool active);
+    void SessionStateChanged(bool active, CleaningMode cleaningMode);
     void DustSignalUpdated(DustSignal signal) override;
     void SuspendCleaningForManeuver();
-    void ResumeCleaningAfterManeuver();
+    void ResumeCleaningAfterManeuver(CleaningMode mode = CleaningMode::Normal);
+    void StartBoostCleaning();
+    void EndBoostCleaning();
+    void SetCleaningMode(CleaningMode mode);
+
+    DustSignal dustSignal() const noexcept { return dustSignal_; }
 
 private:
     void send(CleaningCommand command);

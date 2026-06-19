@@ -1,7 +1,8 @@
 <map id="UC04_system_sequence_map" name="UC04_system_sequence_map">
-<area shape="rect" id="id1" href="A1" title="A1" alt="" coords="100,549,229,562"/>
-<area shape="rect" id="id2" href="E1" title="E1" alt="" coords="100,830,248,843"/>
-<area shape="rect" id="id3" href="debounce" title="debounce" alt="" coords="196,853,352,867"/>
-<area shape="rect" id="id4" href="typical" title="typical" alt="" coords="174,317,370,331"/>
-<area shape="rect" id="id5" href="A2" title="A2" alt="" coords="100,719,306,733"/>
+<area shape="rect" id="id1" href="A1" title="A1" alt="" coords="100,779,229,792"/>
+<area shape="rect" id="id2" href="E1" title="E1" alt="" coords="100,1060,248,1073"/>
+<area shape="rect" id="id3" href="debounce" title="debounce" alt="" coords="196,1083,352,1097"/>
+<area shape="rect" id="id4" href="A2" title="A2" alt="" coords="100,949,306,962"/>
+<area shape="rect" id="id5" href="typical" title="typical" alt="" coords="174,317,468,331"/>
+<area shape="rect" id="id6" href="typical" title="typical" alt="" coords="100,549,404,562"/>
 </map>

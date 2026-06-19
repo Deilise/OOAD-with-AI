@@ -9,80 +9,117 @@ ObstaclePerceptionContext::ObstaclePerceptionContext(NavigationAndEscapeCoordina
 
 FusedObstacleSnapshot ObstaclePerceptionContext::ObstacleStateChanged(const ObstacleEvent& event) {
     lastUpdateTime_ = event.sampleTime;
+
+    if (event.kind == ObstacleEventKind::dustDetected) {
+        navigation_.DustManeuverRequested();
+        return FusedObstacleSnapshot{};
+    }
+
+    if (event.kind == ObstacleEventKind::dustCleared) {
+        navigation_.DustManeuverComplete();
+        return FusedObstacleSnapshot{};
+    }
+
     const auto snapshot = fuse(event);
     navigation_.FusedObstacleSnapshot(snapshot);
     return snapshot;
+}
+
+bool ObstaclePerceptionContext::leadingSectorBlocked() const {
+    return navigation_.travelToggle() == TravelToggle::Backward ? backObstacle_ : frontObstacle_;
+}
+
+ProbeSensor ObstaclePerceptionContext::currentProbeSensor() const {
+    return navigation_.travelToggle() == TravelToggle::Backward ? ProbeSensor::back
+                                                                : ProbeSensor::front;
 }
 
 FusedObstacleSnapshot ObstaclePerceptionContext::fuse(const ObstacleEvent& event) {
     FusedObstacleSnapshot snapshot{};
 
     switch (event.kind) {
-    case ObstacleEventKind::frontLeftSample:
+    case ObstacleEventKind::frontSample:
         frontObstacle_ = event.frontBlocked;
-        leftObstacle_ = event.leftBlocked;
-        snapshot.kind = FusedObstacleSnapshotKind::consistencyApplied;
-        snapshot.forwardBlocked = frontObstacle_;
-        snapshot.forwardSafe = !frontObstacle_;
+        snapshot.kind = FusedObstacleSnapshotKind::valid;
+        snapshot.leadingSectorBlocked = leadingSectorBlocked();
+        snapshot.leadingSectorSafe = !snapshot.leadingSectorBlocked;
         snapshot.valid = true;
         break;
-    case ObstacleEventKind::forwardSafe:
-    case ObstacleEventKind::forwardSafeAfterManeuver:
+    case ObstacleEventKind::leftSample:
+        leftObstacle_ = event.leftBlocked;
+        snapshot.kind = FusedObstacleSnapshotKind::valid;
+        snapshot.valid = true;
+        break;
+    case ObstacleEventKind::backSample:
+        backObstacle_ = event.backBlocked;
+        snapshot.kind = FusedObstacleSnapshotKind::valid;
+        snapshot.leadingSectorBlocked = leadingSectorBlocked();
+        snapshot.leadingSectorSafe = !snapshot.leadingSectorBlocked;
+        snapshot.valid = true;
+        break;
+    case ObstacleEventKind::leadingSectorSafe:
     case ObstacleEventKind::recovered:
-        frontObstacle_ = false;
-        leftObstacle_ = false;
+        if (navigation_.travelToggle() == TravelToggle::Backward) {
+            backObstacle_ = false;
+        } else {
+            frontObstacle_ = false;
+        }
         snapshot.kind = event.kind == ObstacleEventKind::recovered
                             ? FusedObstacleSnapshotKind::valid
-                            : FusedObstacleSnapshotKind::forwardSafe;
-        snapshot.forwardSafe = true;
+                            : FusedObstacleSnapshotKind::leadingSectorSafe;
+        snapshot.leadingSectorSafe = true;
         snapshot.valid = true;
         break;
-    case ObstacleEventKind::forwardBlocked:
-        frontObstacle_ = true;
+    case ObstacleEventKind::leadingSectorBlocked:
+        if (navigation_.travelToggle() == TravelToggle::Backward) {
+            backObstacle_ = true;
+        } else {
+            frontObstacle_ = true;
+        }
         leftObstacle_ = event.leftBlocked;
-        snapshot.forwardBlocked = true;
+        snapshot.leadingSectorBlocked = true;
         snapshot.leftTurnViable = !leftObstacle_;
         if (rightProbeStatus_ != ProbeStatus::Valid) {
             rightProbeStatus_ = ProbeStatus::Pending;
-            navigation_.RequestRightSideProbe(leftObstacle_
-                                                  ? ProbeReason::surroundedCheck
-                                                  : ProbeReason::rightTurnViability);
+            navigation_.RequestRightSideProbe(leftObstacle_ ? ProbeReason::surroundedCheck
+                                                            : ProbeReason::rightTurnViability);
             snapshot.kind = FusedObstacleSnapshotKind::ambiguous;
-        } else if (leftObstacle_ && rightObstacleInferred_) {
+        } else if (frontObstacle_ && leftObstacle_ && rightObstacleInferred_) {
             snapshot.kind = FusedObstacleSnapshotKind::surrounded;
             snapshot.surrounded = true;
         } else if (rightObstacleInferred_) {
-            snapshot.kind = snapshot.leftTurnViable
-                                ? FusedObstacleSnapshotKind::leftTurnViable
-                                : FusedObstacleSnapshotKind::noLateralTurnViable;
+            snapshot.kind = snapshot.leftTurnViable ? FusedObstacleSnapshotKind::leftTurnViable
+                                                  : FusedObstacleSnapshotKind::noLateralTurnViable;
         } else {
             snapshot.kind = FusedObstacleSnapshotKind::rightTurnViable;
             snapshot.rightTurnViable = true;
         }
         break;
-    case ObstacleEventKind::probePoseRightSample:
+    case ObstacleEventKind::probePoseRightSample: {
+        const bool probeBlocked = event.probeSensor == ProbeSensor::back ? event.backBlocked
+                                                                         : event.frontBlocked;
         rightProbeStatus_ = ProbeStatus::Valid;
-        rightObstacleInferred_ = event.frontBlocked;
-        snapshot.forwardBlocked = frontObstacle_;
+        rightObstacleInferred_ = probeBlocked;
+        snapshot.leadingSectorBlocked = leadingSectorBlocked();
         if (frontObstacle_ && leftObstacle_ && rightObstacleInferred_) {
             snapshot.kind = FusedObstacleSnapshotKind::surrounded;
             snapshot.surrounded = true;
         } else {
-            snapshot.kind = rightObstacleInferred_
-                                ? FusedObstacleSnapshotKind::rightTurnInvalid
-                                : FusedObstacleSnapshotKind::rightTurnViable;
+            snapshot.kind = rightObstacleInferred_ ? FusedObstacleSnapshotKind::rightTurnInvalid
+                                                   : FusedObstacleSnapshotKind::rightTurnViable;
         }
         snapshot.rightTurnViable = !rightObstacleInferred_;
         snapshot.leftTurnViable = !leftObstacle_;
         snapshot.valid = true;
         break;
+    }
     case ObstacleEventKind::surrounded:
         frontObstacle_ = true;
         leftObstacle_ = true;
         rightObstacleInferred_ = true;
         rightProbeStatus_ = ProbeStatus::Valid;
         snapshot.kind = FusedObstacleSnapshotKind::surrounded;
-        snapshot.forwardBlocked = true;
+        snapshot.leadingSectorBlocked = true;
         snapshot.surrounded = true;
         break;
     case ObstacleEventKind::leftOpening:
@@ -122,11 +159,10 @@ FusedObstacleSnapshot ObstaclePerceptionContext::fuse(const ObstacleEvent& event
     case ObstacleEventKind::invalidOrTimeout:
         rightProbeStatus_ = ProbeStatus::Timeout;
         snapshot.kind = FusedObstacleSnapshotKind::invalid;
-        snapshot.forwardBlocked = true;
+        snapshot.leadingSectorBlocked = leadingSectorBlocked();
         snapshot.valid = false;
         break;
     case ObstacleEventKind::invalidOrStale:
-    case ObstacleEventKind::dropoutDuringReverse:
         snapshot.kind = FusedObstacleSnapshotKind::invalid;
         snapshot.valid = false;
         break;
@@ -135,7 +171,9 @@ FusedObstacleSnapshot ObstaclePerceptionContext::fuse(const ObstacleEvent& event
         snapshot.valid = true;
         break;
     case ObstacleEventKind::TBD:
-        snapshot.kind = FusedObstacleSnapshotKind::snapshot;
+        snapshot.kind = FusedObstacleSnapshotKind::valid;
+        break;
+    default:
         break;
     }
 

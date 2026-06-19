@@ -1,5 +1,6 @@
 <map id="UC07_system_sequence_map" name="UC07_system_sequence_map">
-<area shape="rect" id="id1" href="typical" title="typical" alt="" coords="94,317,135,331"/>
-<area shape="rect" id="id2" href="A1" title="A1" alt="" coords="20,370,158,383"/>
-<area shape="rect" id="id3" href="E1" title="E1" alt="" coords="20,451,222,464"/>
+<area shape="rect" id="id1" href="typical" title="typical" alt="" coords="94,258,188,271"/>
+<area shape="rect" id="id2" href="A2" title="A2" alt="" coords="20,370,131,383"/>
+<area shape="rect" id="id3" href="A1" title="A1" alt="" coords="20,481,158,494"/>
+<area shape="rect" id="id4" href="E1" title="E1" alt="" coords="20,562,222,575"/>
 </map>

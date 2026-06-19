@@ -8,7 +8,8 @@ namespace rvc_test {
 
 class RecordingMotionSink final : public rvc::MotionCommandSink {
 public:
-    void MotionCommand(rvc::MotionCommand command) override {
+    void MotionCommand(rvc::MotionCommand command,
+                       rvc::ProbeSensor /*probeSensor*/ = rvc::ProbeSensor::TBD) override {
         commands.push_back(command);
     }
 

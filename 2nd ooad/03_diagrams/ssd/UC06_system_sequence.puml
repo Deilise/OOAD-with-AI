@@ -6,36 +6,53 @@ skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 autonumber
 
-title UC-06 — Boost cleaning when dust is high\n(system sequence diagram)
+title UC-06 — Perform dust maneuver (spin, boost, toggle travel)\n(system sequence diagram)
 
 actor "Home user\n(beneficiary)" as User
 participant "Dust / debris\nsensor" as Dust
 box "Roomba RVC control software\n(black box)" #E8F4FF
   participant "System" as Sys
 end box
+participant "Drive motors /\nwheels" as Drv
 participant "Cleaning hardware\n(vacuum, brushes, mop)" as Cln
 
-note over User, Sys : after UC-01
+note over User, Sys : after UC-01; deferred if UC-03/04/05 active;\nback sensor ignored during maneuver
 
-alt [typical]
+alt [typical dust maneuver]
   Dust -> Sys : DustSignalUpdated(aboveThreshold)
   activate Sys
-  Sys -> Cln : CleaningCommand(boost)
+  Sys -> Drv : MotionCommand(stop)
+  loop [while dust above threshold]
+    alt [travelToggle Forward]
+      Sys -> Drv : MotionCommand(spin540Clockwise)
+    else [travelToggle Backward]
+      Sys -> Drv : MotionCommand(spin540CounterClockwise)
+    end
+    Sys -> Cln : CleaningCommand(boost)
+    Dust -> Sys : DustSignalUpdated(level)
+  end
+  Sys -> Cln : CleaningCommand(normal)
+  note over Sys : ToggleTravelDirection()\nForward <-> Backward
+  alt [resume after toggle to Forward leading]
+    Sys -> Drv : MotionCommand(forward)
+  else [resume after toggle to Backward leading]
+    Sys -> Drv : MotionCommand(reverse)
+  end
   Sys -> Cln : CleaningCommand(normal)
   deactivate Sys
-  note over Sys : may overlap UC-02
-else [A1 boost during suspended cleaning]
+  note over Sys : next: UC-02; world travel direction preserved
+else [A1 deferred by maneuver]
   Dust -> Sys : DustSignalUpdated(aboveThreshold)
-  activate Sys
-  Sys -> Cln : CleaningCommand(unchangedOrDeferredTBD)
-  deactivate Sys
-  note over Sys : cleaning suspended under UC-03 or UC-05
+  note over Sys : waits until UC-03, UC-04, or UC-05 completes
 else [E1 invalid dust signal]
   Dust -> Sys : DustSignalUpdated(invalid)
   activate Sys
-  Sys -> Cln : CleaningCommand(normal)
+  note over Dust, Cln : no maneuver; branch UC-08 if needed (TBD)
   deactivate Sys
-  note over Dust, Cln : no boost; branch UC-08 if needed (TBD)
+else [E2 spin timeout]
+  Dust -> Sys : DustSignalUpdated(aboveThreshold)
+  Sys -> Drv : MotionCommand(stop)
+  note over Sys : safe behavior TBD; next: UC-08
 end
 
 @enduml

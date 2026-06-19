@@ -1,6 +1,7 @@
 <map id="UC02_sequence_map" name="UC02_sequence_map">
-<area shape="rect" id="id1" href="typical" title="typical" alt="" coords="211,253,252,266"/>
-<area shape="rect" id="id2" href="A1" title="A1" alt="" coords="137,389,273,402"/>
+<area shape="rect" id="id1" href="typical" title="typical" alt="" coords="211,253,305,266"/>
+<area shape="rect" id="id2" href="A1" title="A1" alt="" coords="137,389,289,402"/>
 <area shape="rect" id="id3" href="cruise" title="cruise" alt="" coords="213,228,381,241"/>
-<area shape="rect" id="id4" href="E1" title="E1" alt="" coords="137,553,322,567"/>
+<area shape="rect" id="id4" href="A2" title="A2" alt="" coords="137,523,306,537"/>
+<area shape="rect" id="id5" href="E1" title="E1" alt="" coords="137,658,322,671"/>
 </map>

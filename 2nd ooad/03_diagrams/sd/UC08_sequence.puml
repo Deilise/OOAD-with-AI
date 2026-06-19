@@ -6,12 +6,11 @@ skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 autonumber
 
-title UC-08 - Handle missing / invalid / stale obstacle or probe data\n(sequence diagram)
+title UC-08 — Safe behavior on bad or stale sensor data\n(sequence diagram)
 
-actor "Home user" as User
-participant "Direct front / left\nobstacle sensors" as Obs
+actor "Home user\n(beneficiary)" as User
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
-  participant "session:\nAutomaticCleaningSession" as Session
   participant "perception:\nObstaclePerceptionContext" as Perception
   participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
   participant "cleaning:\nSurfaceCleaningController" as Clean
@@ -19,33 +18,50 @@ end box
 participant "Wheel motors\n(left, right)" as Motors
 participant "Cleaning hardware" as CleanHW
 
-alt [typical full fault]
-  Obs -> Perception : ObstacleStateChanged(frontOrLeft=invalidOrStale)
+alt [typical missing front obstacle data Forward toggle]
+  Obs -> Perception : ObstacleStateChanged(front=missing)
   Perception -> Nav : FusedObstacleSnapshot(invalid)
   Nav -> Motors : MotionCommand(stop)
   Nav -> Clean : SuspendCleaningForManeuver()
   Clean -> CleanHW : CleaningCommand(suspend)
-else [A1 partial staleness]
-  Obs -> Perception : ObstacleStateChanged(frontOrLeft=partialStale)
-  Perception -> Nav : FusedObstacleSnapshot(partialStale)
-  Nav -> Motors : MotionCommand(gradualOrPartialStopTBD)
-else [probe invalid or timed out]
-  Obs -> Perception : ObstacleStateChanged(probePose=right, front=invalidOrTimeout)
+  note over Nav, Clean : hold until valid data or timeout policy (TBD)
+else [typical missing back obstacle data Backward toggle]
+  Obs -> Perception : ObstacleStateChanged(back=missing)
   Perception -> Nav : FusedObstacleSnapshot(invalid)
-  Nav -> Motors : MotionCommand(stopOrFallbackTBD)
+  Nav -> Motors : MotionCommand(stop)
   Nav -> Clean : SuspendCleaningForManeuver()
   Clean -> CleanHW : CleaningCommand(suspend)
-end
-
-alt [typical recovery]
-  Obs -> Perception : ObstacleStateChanged(frontAndLeft=recovered)
-  Obs -> Perception : ObstacleStateChanged(probePose=right, front=validWhenRequired)
-  Perception -> Nav : FusedObstacleSnapshot(valid)
-  note over Perception, Nav : recovery before UC-02: TBD
-else [E1 never recovers]
-  note over User : user resets or moves robot
-  User -> Session : requestServiceOrReset()
-  note over User, Session : hardware / service TBD
+else [typical stale leading sector]
+  Obs -> Perception : ObstacleStateChanged(leadingSector=stale)
+  Perception -> Nav : FusedObstacleSnapshot(stale)
+  Nav -> Motors : MotionCommand(stop)
+  Nav -> Clean : SuspendCleaningForManeuver()
+  Clean -> CleanHW : CleaningCommand(suspend)
+else [A1 stale right-side probe Forward toggle]
+  Obs -> Perception : ObstacleStateChanged(probePose=right, front=stale)
+  Perception -> Nav : FusedObstacleSnapshot(probeStale)
+  Nav -> Motors : MotionCommand(action=restoreHeading)
+  Nav -> Motors : MotionCommand(stop)
+  note over Perception, Nav : may escalate to fallback (TBD)
+else [A2 stale right-side probe Backward toggle]
+  Obs -> Perception : ObstacleStateChanged(probePose=right, back=stale)
+  Perception -> Nav : FusedObstacleSnapshot(probeStale)
+  Nav -> Motors : MotionCommand(action=restoreHeading)
+  Nav -> Motors : MotionCommand(stop)
+else [A3 data recovers]
+  Obs -> Perception : ObstacleStateChanged(leadingSector=valid)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
+  Nav -> Clean : ResumeCleaningAfterManeuver()
+  Clean -> CleanHW : CleaningCommand(normal)
+  Nav -> Motors : MotionCommand(forwardOrReversePerToggle)
+  note over Nav, Motors : next: UC-02
+else [E1 persistent invalid data]
+  Obs -> Perception : ObstacleStateChanged(allSensors=invalid)
+  Perception -> Nav : FusedObstacleSnapshot(persistentInvalid)
+  Nav -> Motors : MotionCommand(stop)
+  Nav -> Clean : SuspendCleaningForManeuver()
+  Clean -> CleanHW : CleaningCommand(suspend)
+  note over Nav, Clean : session halt or notify user (TBD)
 end
 
 @enduml

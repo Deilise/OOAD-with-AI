@@ -15,6 +15,7 @@ end box
 
 alt [typical]
   Who -> Sys : StartSession(source)
+  note over Sys : travelToggle=Forward,\ncleaningMode=Normal
   note over Who, Sys : next: UC-02
 else [A1 start ignored]
   Who -> Sys : StartSession(source)

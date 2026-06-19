@@ -1,5 +1,11 @@
 <map id="UC06_system_sequence_map" name="UC06_system_sequence_map">
-<area shape="rect" id="id1" href="typical" title="typical" alt="" coords="166,228,207,241"/>
-<area shape="rect" id="id2" href="E1" title="E1" alt="" coords="92,481,204,494"/>
-<area shape="rect" id="id3" href="A1" title="A1" alt="" coords="92,370,296,383"/>
+<area shape="rect" id="id1" href="travelToggle" title="travelToggle" alt="" coords="555,353,606,366"/>
+<area shape="rect" id="id2" href="travelToggle" title="travelToggle" alt="" coords="481,400,542,413"/>
+<area shape="rect" id="id3" href="E2" title="E2" alt="" coords="92,964,169,977"/>
+<area shape="rect" id="id4" href="typical" title="typical" alt="" coords="166,244,258,257"/>
+<area shape="rect" id="id5" href="E1" title="E1" alt="" coords="92,853,204,866"/>
+<area shape="rect" id="id6" href="while" title="while" alt="" coords="196,328,327,342"/>
+<area shape="rect" id="id7" href="A1" title="A1" alt="" coords="92,772,229,785"/>
+<area shape="rect" id="id8" href="resume" title="resume" alt="" coords="555,608,748,621"/>
+<area shape="rect" id="id9" href="resume" title="resume" alt="" coords="481,654,683,668"/>
 </map>

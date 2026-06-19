@@ -1,6 +1,6 @@
 # Roomba RVC — Domain model
 
-Aligned with **`../../01_requirements/RVC_SW_Controller_SRS.md` §3.2** and **`../../02_use_cases/RVC_SW_Controller_UseCases.md`**. This version follows SRS/use case v0.6.0: the RVC has direct front/left obstacle sensing, no dedicated right-side sensor, and infers right-side status through a high-level right-side probe using available sensing.
+Aligned with **`../../01_requirements/RVC_SW_Controller_SRS.md` §3.2** and **`../../02_use_cases/RVC_SW_Controller_UseCases.md`**. This version follows SRS/use case **v0.7.2**: direct **front / left / back** obstacle sensing, **`travelToggle`** (leading travel edge swaps front vs back), **Normal / Boost / Suspended** cleaning, **dust maneuver**, and **right-side probe** using the **front** sensor when Forward toggle and the **back** sensor when Backward toggle.
 
 **Source:** `RVC_domain.puml` · **Re-render:** `powershell -NoProfile -ExecutionPolicy Bypass -File ..\render-diagrams.ps1`
 
@@ -12,68 +12,66 @@ Aligned with **`../../01_requirements/RVC_SW_Controller_SRS.md` §3.2** and **`.
 |-------------------|-----------------|-------------------------|--------|
 | **AutomaticCleaningSession** (§3.2.1) | Yes | `sessionActive`, `sessionSource` | Match |
 | **SurfaceCleaningController** (§3.2.2) | Yes | `cleaningMode`, `powerLevel`, `dustSignal` | Match |
-| **ObstaclePerceptionContext** (§3.2.3) | Yes | `frontObstacle`, `leftObstacle`, `rightObstacleInferred`, `rightProbeStatus`, `lastUpdateTime` | Match |
-| **NavigationAndEscapeCoordinator** (§3.2.4) | Yes | `motionState`, `backupDistanceRemaining` | Match |
+| **ObstaclePerceptionContext** (§3.2.3) | Yes | `frontObstacle`, `leftObstacle`, **`backObstacle`**, `rightObstacleInferred`, `rightProbeStatus`, `lastUpdateTime` | Match |
+| **NavigationAndEscapeCoordinator** (§3.2.4) | Yes | `motionState`, **`travelToggle`**, `backupDistanceRemaining` | Match |
 
 ### Messages on links (SRS §3.2.x.3)
 
 | Link | SRS message(s) | Status |
 |------|----------------|--------|
 | User → AutomaticCleaningSession | `StartSession`, `StopSession` | Match |
-| Direct front/left sensors → ObstaclePerceptionContext | `ObstacleStateChanged` | Match |
+| Direct front/left/back sensors → ObstaclePerceptionContext | `ObstacleStateChanged` | Match |
 | Dust → SurfaceCleaningController | `DustSignalUpdated` | Match |
-| AutomaticCleaningSession → Navigation / Cleaning | notifies session state (internal) | Match |
+| AutomaticCleaningSession → Navigation / Cleaning | notifies session state; init Forward toggle + Normal mode | Match |
 | ObstaclePerceptionContext → NavigationAndEscapeCoordinator | `FusedObstacleSnapshot`, `RequestRightSideProbe` | Match |
-| NavigationAndEscapeCoordinator → SurfaceCleaningController | `SuspendCleaningForManeuver`, `ResumeCleaningAfterManeuver` | Match |
-| NavigationAndEscapeCoordinator → wheels | `MotionCommand` including forward, reverse, turn, and probe re-orientation | Match |
-| SurfaceCleaningController → hardware | `CleaningCommand` | Match |
+| NavigationAndEscapeCoordinator → SurfaceCleaningController | `SuspendCleaningForManeuver`, `ResumeCleaningAfterManeuver`, **`StartBoostCleaning`**, **`EndBoostCleaning`** | Match |
+| NavigationAndEscapeCoordinator → wheels | `MotionCommand` (forward, reverse, turn, probe, **spin540**) | Match |
+| SurfaceCleaningController → hardware | `CleaningCommand` (**normal / boost / suspend**) | Match |
+| Navigation (internal) | **`ToggleTravelDirection`** on dust-maneuver completion | Match |
 
-### What changed from the earlier domain model
+### What changed from v0.6.0 / v0.7.1
 
 | Was | Now |
 |-----|-----|
-| Obstacle sensors for front / left / right | Direct obstacle sensors for front / left only |
-| `rightObstacle` direct attribute | `rightObstacleInferred` derived by right-side probe |
-| No probe status attribute | `rightProbeStatus` tracks pending/valid/invalid/stale probe-pose observation |
-| Fused picture derived from direct sectors | `FusedObstacleSnapshot` derived from direct front/left samples plus right-side probe observation |
-| Navigation sends generic `MotionCommand` | Navigation sends `MotionCommand` for forward/reverse/turn/probe re-orientation |
+| Direct sensors front / left only | Direct sensors **front / left / back** |
+| Always forward cruise | **`travelToggle`** on NavigationAndEscapeCoordinator |
+| Bounded dust boost | **Normal / Boost / Suspended**; dust maneuver + toggle |
+| Probe always via front sensor | Probe via **front** or **back** per `travelToggle` |
+| No `backObstacle` attribute | **`backObstacle`** on ObstaclePerceptionContext |
 
-`FusedObstacleSnapshot` is an SRS **message** (§3.2.3.3 → §3.2.4.3), not a fifth §3.2 object. Its fields are noted on the diagram (derived by OBJ3-FR-3 and OBJ3-FR-5); they are not separate AT-* rows in the SRS.
-
-The right-side probe is not modeled as a separate physical sensor. It is a behavior in which the system commands high-level re-orientation and uses available sensing, such as the front obstacle sensor, to infer right-side status. Exact motor control, angles, and timing remain outside this domain model.
+`FusedObstacleSnapshot` is an SRS **message** (§3.2.3.3 → §3.2.4.3), not a fifth §3.2 object. Its fields are noted on the diagram (derived by OBJ3-FR-3 and OBJ3-FR-5).
 
 ## Multiplicities
 
 | Link | Mult | Note |
 |------|------|------|
 | User → AutomaticCleaningSession | 0..* — 1 | |
-| Direct obstacle sensors → ObstaclePerceptionContext | 2 — 1 | front / left direct sensors (SRS A-1, HI-1) |
+| Direct obstacle sensors → ObstaclePerceptionContext | **3 — 1** | front / left / back (SRS HI-1, HI-1B; back gated by toggle/maneuver context) |
 | Dust sensor → SurfaceCleaningController | 1 — 1 | |
-| Session → Navigation / Cleaning | 1 — 1 | OBJ1-FR-1 |
-| ObstaclePerceptionContext → NavigationAndEscapeCoordinator | 1 — 1 | sends fused obstacle picture and requests right-side probe when needed |
+| Session → Navigation / Cleaning | 1 — 1 | OBJ1-FR-1, OBJ1-FR-4 |
+| ObstaclePerceptionContext → NavigationAndEscapeCoordinator | 1 — 1 | fused picture + probe requests |
 | NavigationAndEscapeCoordinator → SurfaceCleaningController | 1 — 1 | |
-| NavigationAndEscapeCoordinator → wheel motors | 1 — 2 | physical wheels; logical MotionCommand, including probe re-orientation |
+| NavigationAndEscapeCoordinator → wheel motors | 1 — 2 | MotionCommand incl. dust spin |
 | SurfaceCleaningController → cleaning hardware | 1 — 1 | |
 
-## Change summary for SRS/use case/SSD v0.6.0 alignment
+## Change summary for SRS/use case/SSD v0.7.2 alignment
 
 ### Changed
 
-- The external obstacle sensor concept changed from front/left/right sensors to direct front/left sensors only.
-- `ObstaclePerceptionContext` now keeps inferred right-side state instead of direct right-side state.
-- The fused obstacle picture now combines direct front/left observations with right-side probe observations.
-- The navigation-to-wheel relationship now explicitly includes probe re-orientation as a high-level motion command.
-- Multiplicity from obstacle sensors to `ObstaclePerceptionContext` changed from `3 — 1` to `2 — 1`.
+- External obstacle sensors now **front / left / back** (multiplicity **3 — 1**).
+- `ObstaclePerceptionContext` adds **`backObstacle`**.
+- `NavigationAndEscapeCoordinator` adds **`travelToggle`**.
+- Probe note: **front** vs **back** sensor per toggle.
+- Cleaning and motion link labels include **normal/boost/suspend** and **spin540**.
 
 ### Added
 
-- `rightObstacleInferred` attribute.
-- `rightProbeStatus` attribute for the status of probe-pose observations.
-- `RequestRightSideProbe` communication between `ObstaclePerceptionContext` and `NavigationAndEscapeCoordinator`.
-- A note explaining that there is no dedicated right-side sensor and that right-side status is inferred by re-orienting the robot and using available sensing.
+- Session-start note: initial **Forward** toggle and **Normal** cleaning mode.
+- **`StartBoostCleaning` / `EndBoostCleaning`** on navigation → cleaning link.
+- **`ToggleTravelDirection`** note on navigation (internal, dust-maneuver completion).
 
-### Removed
+### Preserved
 
-- Direct right-side obstacle sensor as an external domain participant.
-- Direct `rightObstacle` attribute.
-- The assumption that all three obstacle sectors are directly sensed.
+- Four SRS §3.2 domain classes inside software boundary.
+- Inferred right via probe (no dedicated right sensor).
+- External actors remain outside the software package.

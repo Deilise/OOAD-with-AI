@@ -6,10 +6,10 @@ skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 autonumber
 
-title UC-04 - Avoid obstacle when right turn blocked\n(sequence diagram)
+title UC-04 — Avoid obstacle when right turn blocked\n(sequence diagram)
 
 actor "Home user\n(beneficiary)" as User
-participant "Direct front / left\nobstacle sensors" as Obs
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
   participant "perception:\nObstaclePerceptionContext" as Perception
   participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
@@ -18,41 +18,52 @@ end box
 participant "Wheel motors\n(left, right)" as Motors
 participant "Cleaning hardware" as CleanHW
 
-note over User, Clean : after UC-01; right is probed, left viable
+note over User, Clean : probe uses front if Forward toggle,\nback if Backward toggle
 
-Obs -> Perception : ObstacleStateChanged(front=blocked, left=viable)
+Obs -> Perception : ObstacleStateChanged(leadingSector=blocked, left=viable)
 Perception -> Nav : RequestRightSideProbe(reason=rightTurnViability)
 Nav -> Clean : SuspendCleaningForManeuver()
 Clean -> CleanHW : CleaningCommand(suspend)
 Nav -> Motors : MotionCommand(action=probeRightSide)
 
-alt [typical probed right not viable turn left]
+alt [typical turn left Forward toggle]
   Obs -> Perception : ObstacleStateChanged(probePose=right, front=blocked)
   Perception -> Nav : FusedObstacleSnapshot(rightTurnInvalid, leftTurnViable)
   Nav -> Motors : MotionCommand(action=restoreHeading)
   Nav -> Motors : MotionCommand(turnLeft)
-  Obs -> Perception : ObstacleStateChanged(front=safe, left=current)
-  Perception -> Nav : FusedObstacleSnapshot(forwardSafe)
+  Obs -> Perception : ObstacleStateChanged(leadingSector=safe, left=current)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
   Nav -> Motors : MotionCommand(forward)
   Nav -> Clean : ResumeCleaningAfterManeuver()
-  Clean -> CleanHW : CleaningCommand(active)
+  Clean -> CleanHW : CleaningCommand(normal)
+  note over Nav, Motors : next: UC-02
+else [typical turn left Backward toggle]
+  Obs -> Perception : ObstacleStateChanged(probePose=right, back=blocked)
+  Perception -> Nav : FusedObstacleSnapshot(rightTurnInvalid, leftTurnViable)
+  Nav -> Motors : MotionCommand(action=restoreHeading)
+  Nav -> Motors : MotionCommand(turnLeft)
+  Obs -> Perception : ObstacleStateChanged(leadingSector=safe, left=current)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
+  Nav -> Motors : MotionCommand(reverse)
+  Nav -> Clean : ResumeCleaningAfterManeuver()
+  Clean -> CleanHW : CleaningCommand(normal)
   note over Nav, Motors : next: UC-02
 else [A1 neither lateral viable]
-  Obs -> Perception : ObstacleStateChanged(front=blocked, left=notViable)
-  Obs -> Perception : ObstacleStateChanged(probePose=right, front=blocked)
+  Obs -> Perception : ObstacleStateChanged(leadingSector=blocked, left=notViable)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, sensor=blocked)
   Perception -> Nav : FusedObstacleSnapshot(noLateralTurnViable)
   Nav -> Motors : MotionCommand(action=restoreHeading)
   Nav -> Motors : MotionCommand(action=fallbackOrEscalateTBD)
   note over Nav, Motors : may trend toward UC-05 (TBD)
 else [A2 right-side probe cannot complete]
-  Obs -> Perception : ObstacleStateChanged(probePose=right, front=timeout)
+  Obs -> Perception : ObstacleStateChanged(probePose=right, sensor=timeout)
   Perception -> Nav : FusedObstacleSnapshot(invalid)
   Nav -> Motors : MotionCommand(stopOrFallbackTBD)
   note over Perception, Nav : next: UC-08 or fallback (TBD)
 else [E1 oscillation left and right]
   loop [debounce and maneuver limits TBD]
-    Obs -> Perception : ObstacleStateChanged(front=blocked, left=flicker)
-    Obs -> Perception : ObstacleStateChanged(probePose=right, front=flicker)
+    Obs -> Perception : ObstacleStateChanged(leadingSector=blocked, left=flicker)
+    Obs -> Perception : ObstacleStateChanged(probePose=right, sensor=flicker)
     Perception -> Nav : FusedObstacleSnapshot(unstable)
     Nav -> Motors : MotionCommand(suppressMotionTBD)
   end

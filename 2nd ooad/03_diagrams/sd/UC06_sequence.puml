@@ -6,36 +6,81 @@ skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 autonumber
 
-title UC-06 - Boost cleaning when dust is high\n(sequence diagram)
+title UC-06 — Dust maneuver (stop, spin, boost, toggle)\n(sequence diagram)
 
 actor "Home user\n(beneficiary)" as User
-participant "Dust sensor" as Dust
+participant "Direct front / left / back\nobstacle sensors" as Obs
 box "Roomba RVC control software\n(inside the SSD black box)" #E8F4FF
+  participant "perception:\nObstaclePerceptionContext" as Perception
+  participant "navigation:\nNavigationAndEscapeCoordinator" as Nav
   participant "cleaning:\nSurfaceCleaningController" as Clean
 end box
+participant "Wheel motors\n(left, right)" as Motors
 participant "Cleaning hardware" as CleanHW
 
-note over User, Clean : after UC-01
+note over User, Clean : back sensor fully ignored during dust maneuver\n540° CW if Forward toggle, CCW if Backward\nToggleTravelDirection only after dust cleared
 
-alt [typical]
-  Dust -> Clean : DustSignalUpdated(aboveThreshold)
-  activate Clean
+alt [typical Forward toggle]
+  Obs -> Perception : ObstacleStateChanged(dustDetected=true)
+  Perception -> Nav : DustManeuverRequested()
+  Nav -> Clean : SuspendCleaningForManeuver()
+  Clean -> CleanHW : CleaningCommand(suspend)
+  Nav -> Motors : MotionCommand(stop)
+  Nav -> Motors : MotionCommand(spin540Clockwise)
+  Nav -> Clean : ResumeCleaningAfterManeuver(mode=Boost)
   Clean -> CleanHW : CleaningCommand(boost)
+  loop [while dust persists]
+    Obs -> Perception : ObstacleStateChanged(dustDetected=true)
+    Perception -> Nav : DustManeuverRequested()
+    Nav -> Motors : MotionCommand(stop)
+    Nav -> Motors : MotionCommand(spin540Clockwise)
+    Nav -> Clean : ResumeCleaningAfterManeuver(mode=Boost)
+    Clean -> CleanHW : CleaningCommand(boost)
+  end
+  Obs -> Perception : ObstacleStateChanged(dustDetected=false)
+  Perception -> Nav : DustManeuverComplete()
+  Nav -> Clean : SetCleaningMode(Normal)
   Clean -> CleanHW : CleaningCommand(normal)
-  deactivate Clean
-  note over Clean : may overlap UC-02
-else [A1 boost during suspended cleaning]
-  Dust -> Clean : DustSignalUpdated(aboveThreshold)
-  activate Clean
-  Clean -> CleanHW : CleaningCommand(unchangedOrDeferredTBD)
-  deactivate Clean
-  note over Clean : cleaning suspended under UC-03 or UC-05
-else [E1 invalid dust signal]
-  Dust -> Clean : DustSignalUpdated(invalid)
-  activate Clean
+  Nav -> Nav : ToggleTravelDirection()
+  Obs -> Perception : ObstacleStateChanged(leadingSector=safe)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
+  Nav -> Motors : MotionCommand(forwardOrReversePerToggle)
+  note over Nav, Motors : next: UC-02; toggle now Backward
+else [typical Backward toggle]
+  Obs -> Perception : ObstacleStateChanged(dustDetected=true)
+  Perception -> Nav : DustManeuverRequested()
+  Nav -> Clean : SuspendCleaningForManeuver()
+  Clean -> CleanHW : CleaningCommand(suspend)
+  Nav -> Motors : MotionCommand(stop)
+  Nav -> Motors : MotionCommand(spin540CounterClockwise)
+  Nav -> Clean : ResumeCleaningAfterManeuver(mode=Boost)
+  Clean -> CleanHW : CleaningCommand(boost)
+  loop [while dust persists]
+    Obs -> Perception : ObstacleStateChanged(dustDetected=true)
+    Perception -> Nav : DustManeuverRequested()
+    Nav -> Motors : MotionCommand(stop)
+    Nav -> Motors : MotionCommand(spin540CounterClockwise)
+    Nav -> Clean : ResumeCleaningAfterManeuver(mode=Boost)
+    Clean -> CleanHW : CleaningCommand(boost)
+  end
+  Obs -> Perception : ObstacleStateChanged(dustDetected=false)
+  Perception -> Nav : DustManeuverComplete()
+  Nav -> Clean : SetCleaningMode(Normal)
   Clean -> CleanHW : CleaningCommand(normal)
-  deactivate Clean
-  note over Dust, CleanHW : no boost; branch UC-08 if needed (TBD)
+  Nav -> Nav : ToggleTravelDirection()
+  Obs -> Perception : ObstacleStateChanged(leadingSector=safe)
+  Perception -> Nav : FusedObstacleSnapshot(leadingSectorSafe)
+  Nav -> Motors : MotionCommand(forwardOrReversePerToggle)
+  note over Nav, Motors : next: UC-02; toggle now Forward
+else [A1 maneuver interrupted by obstacle]
+  Obs -> Perception : ObstacleStateChanged(dustDetected=true, leadingSector=blocked)
+  Perception -> Nav : DustManeuverRequested()
+  Nav -> Motors : MotionCommand(stop)
+  note over Perception, Nav : defer toggle; next: UC-03/04/05
+else [E1 dust sensor invalid]
+  Obs -> Perception : ObstacleStateChanged(dustDetected=invalid)
+  Perception -> Nav : FusedObstacleSnapshot(invalid)
+  note over Perception, Nav : next: UC-08 (TBD)
 end
 
 @enduml

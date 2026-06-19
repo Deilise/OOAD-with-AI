@@ -7,7 +7,7 @@ skinparam linetype polyline
 skinparam nodesep 40
 skinparam ranksep 45
 
-title Roomba RVC — Class diagram\n(SRS/SD v0.6.0: right side inferred by probe)
+title Roomba RVC — Class diagram\n(SRS/SD v0.7.2: travelToggle, back sensor, dust maneuver)
 
 package "Roomba RVC control software" #E8F4FF {
 
@@ -23,25 +23,34 @@ package "Roomba RVC control software" #E8F4FF {
     + StopSession() : void
     + ResumeSession(source : SessionSource) : void
     + requestServiceOrReset() : void
+    - notifySessionStateChanged() : void
   }
 
   class ObstaclePerceptionContext {
     - frontObstacle : Boolean
     - leftObstacle : Boolean
+    - backObstacle : Boolean
     - rightObstacleInferred : Boolean
     - rightProbeStatus : ProbeStatus
     - lastUpdateTime : TimeStamp
     --
     + ObstacleStateChanged(event : ObstacleEvent) : FusedObstacleSnapshot
+    + RequestRightSideProbe(reason : ProbeReason) : void
+    + DustManeuverRequested() : void
+    + DustManeuverComplete() : void
   }
 
   class NavigationAndEscapeCoordinator {
     - motionState : MotionState
+    - travelToggle : TravelToggle
     - backupDistanceRemaining : Distance
     --
-    + SessionStateChanged(active : Boolean) : void
-    + RequestRightSideProbe(reason : ProbeReason) : void
+    + SessionStateChanged(active : Boolean, travelToggle : TravelToggle) : void
     + FusedObstacleSnapshot(snapshot : FusedObstacleSnapshot) : void
+    + DustManeuverRequested() : void
+    + DustManeuverComplete() : void
+    + RequestRightSideProbe(reason : ProbeReason) : void
+    + ToggleTravelDirection() : void
   }
 
   class SurfaceCleaningController {
@@ -49,18 +58,21 @@ package "Roomba RVC control software" #E8F4FF {
     - powerLevel : PowerLevel
     - dustSignal : DustSignal
     --
-    + SessionStateChanged(active : Boolean) : void
+    + SessionStateChanged(active : Boolean, cleaningMode : CleaningMode) : void
     + DustSignalUpdated(signal : DustSignal) : void
     + SuspendCleaningForManeuver() : void
-    + ResumeCleaningAfterManeuver() : void
+    + ResumeCleaningAfterManeuver(mode : CleaningMode) : void
+    + StartBoostCleaning() : void
+    + EndBoostCleaning() : void
+    + SetCleaningMode(mode : CleaningMode) : void
   }
 
   class FusedObstacleSnapshot <<value>> {
     + kind : FusedObstacleSnapshotKind
-    + forwardBlocked : Boolean
+    + leadingSectorBlocked : Boolean
+    + leadingSectorSafe : Boolean
     + surrounded : Boolean
     + lateralOpening : Boolean
-    + forwardSafe : Boolean
     + rightTurnViable : Boolean
     + leftTurnViable : Boolean
     + valid : Boolean
@@ -69,6 +81,7 @@ package "Roomba RVC control software" #E8F4FF {
   class ObstacleEvent <<value>> {
     + kind : ObstacleEventKind
     + probePose : ProbePose
+    + probeSensor : ProbeSensor
     + sampleTime : TimeStamp
   }
 
@@ -79,20 +92,28 @@ package "Roomba RVC control software" #E8F4FF {
     TBD
   }
 
+  enum TravelToggle {
+    Forward
+    Backward
+    TBD
+  }
+
   enum MotionState {
     ForwardCruise
+    BackwardCruise
     Avoiding
     RightSideProbing
-    Reversing
+    SurroundedReversing
+    DustManeuvering
     Turning
     Stopped
     TBD
   }
 
   enum CleaningMode {
-    Active
+    Normal
+    Boost
     Suspended
-    Boosted
     TBD
   }
 
@@ -105,75 +126,70 @@ package "Roomba RVC control software" #E8F4FF {
 
   enum MotionCommand {
     forward
+    reverse
+    forwardOrReversePerToggle
     turnRight
     turnLeft
-    reverse
-    continueReverse
+    reverseEscapeSegment
     probeRightSide
     restoreHeading
-    restoreEscapeHeading
-    lateralEscapeRight
-    lateralEscapeLeft
-    forbidForward
+    spin540Clockwise
+    spin540CounterClockwise
     stop
-    fallbackTBD
-    fallbackOrEscalateTBD
+    holdOrReManeuverTBD
+    stopOrSafeHold
     stopOrFallbackTBD
-    gradualOrPartialStopTBD
+    fallbackOrEscalateTBD
     suppressMotionTBD
+    TBD
   }
 
   enum CleaningCommand {
     normal
     boost
-    active
     suspend
-    unchangedOrDeferredTBD
+    TBD
   }
 
   enum ObstacleEventKind {
-    frontLeftSample
+    frontSample
+    leftSample
+    backSample
     probePoseRightSample
-    forwardBlocked
-    forwardSafe
-    forwardSafeAfterManeuver
+    leadingSectorBlocked
+    leadingSectorSafe
+    dustDetected
+    dustCleared
     surrounded
     leftOpening
     lateralOpening
     noLateralOpening
-    reverseReadings
-    reverseCycleSample
-    noLateralOpeningWithinLimits
     invalidOrTimeout
     invalidOrStale
     partialStale
     recovered
     ambiguous
-    dropoutDuringReverse
     TBD
   }
 
   enum FusedObstacleSnapshotKind {
-    forwardSafe
-    forwardBlocked
+    leadingSectorSafe
+    leadingSectorBlocked
     notSurrounded
     surrounded
     invalid
+    stale
+    probeStale
+    persistentInvalid
     valid
     ambiguous
     partialStale
-    snapshot
-    reverseReadings
-    reverseCycleSample
-    lateralOpening
     rightTurnViable
     rightTurnInvalid
     leftTurnViable
     noLateralTurnViable
     noLateralOpening
     unstable
-    consistencyApplied
-    alignedSnapshotTBD
     incoherent
     TBD
   }
@@ -202,6 +218,11 @@ package "Roomba RVC control software" #E8F4FF {
     right
     TBD
   }
+  enum ProbeSensor {
+    front
+    back
+    TBD
+  }
   enum DustSignal {
     aboveThreshold
     invalid
@@ -227,7 +248,7 @@ package "External interfaces" #F5F5F5 {
   }
 
   interface MotionCommandSink {
-    MotionCommand(command)
+    MotionCommand(command, probeSensor)
   }
 
   interface CleaningCommandSink {
@@ -244,20 +265,21 @@ AutomaticCleaningSession ..|> SessionIntentPort
 ObstaclePerceptionContext ..|> ObstacleInputPort
 SurfaceCleaningController ..|> DustInputPort
 
-AutomaticCleaningSession "1" --> "1" NavigationAndEscapeCoordinator : notifies session state
-AutomaticCleaningSession "1" --> "1" SurfaceCleaningController : notifies session state
+AutomaticCleaningSession "1" --> "1" NavigationAndEscapeCoordinator : notifies session state\n(initial travelToggle=Forward)
+AutomaticCleaningSession "1" --> "1" SurfaceCleaningController : notifies session state\n(initial cleaningMode=Normal)
 
-ObstaclePerceptionContext "1" --> "1" NavigationAndEscapeCoordinator : sends snapshot /\nrequests right-side probe
+ObstaclePerceptionContext "1" --> "1" NavigationAndEscapeCoordinator : FusedObstacleSnapshot /\nRequestRightSideProbe /\nDustManeuverRequested /\nDustManeuverComplete
 ObstaclePerceptionContext ..> FusedObstacleSnapshot : creates
 ObstaclePerceptionContext ..> ObstacleEvent : consumes
 FusedObstacleSnapshot ..> FusedObstacleSnapshotKind : type
 
-NavigationAndEscapeCoordinator "1" --> "1" SurfaceCleaningController : suspend / resume
+NavigationAndEscapeCoordinator "1" --> "1" SurfaceCleaningController : suspend / resume /\nStartBoostCleaning / EndBoostCleaning /\nSetCleaningMode
 NavigationAndEscapeCoordinator "1" --> "1" MotionCommandSink : sends command
 SurfaceCleaningController "1" --> "1" CleaningCommandSink : sends command
 
 AutomaticCleaningSession ..> SessionSource : type
 NavigationAndEscapeCoordinator ..> MotionState : type
+NavigationAndEscapeCoordinator ..> TravelToggle : type
 SurfaceCleaningController ..> CleaningMode : type
 SurfaceCleaningController ..> PowerLevel : type
 SurfaceCleaningController ..> DustSignal : type
@@ -266,6 +288,24 @@ NavigationAndEscapeCoordinator ..> ProbeReason : type
 ObstaclePerceptionContext ..> TimeStamp : type
 ObstaclePerceptionContext ..> ProbeStatus : type
 ObstacleEvent ..> ProbePose : type
+ObstacleEvent ..> ProbeSensor : type
+ObstacleEvent ..> ObstacleEventKind : type
+
+note bottom of NavigationAndEscapeCoordinator
+  **travelToggle** swaps leading travel edge:
+  Forward = front leads; Backward = back leads.
+  Toggled on dust-maneuver completion only
+  (**ToggleTravelDirection**). Unchanged by
+  surrounded escape.
+end note
+
+note bottom of ObstaclePerceptionContext
+  **backObstacle** is leading sector when
+  travelToggle=Backward (normal cruise), probe
+  sensor when toggled Backward, ignored during
+  dust maneuver; not leading during surrounded-
+  escape reverse.
+end note
 
 legend bottom left
   *--  composition: controller owns internal objects
