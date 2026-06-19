@@ -29,14 +29,15 @@ TEST(AutomaticCleaningSessionTest, StartSessionEnablesNavigationAndCleaningPolic
     AutomaticCleaningSessionFixture fixture;
 
     fixture.session.StartSession(rvc::SessionSource::User);
-    fixture.navigation.FusedObstacleSnapshot({rvc::FusedObstacleSnapshotKind::forwardSafe});
+    fixture.navigation.FusedObstacleSnapshot({rvc::FusedObstacleSnapshotKind::leadingSectorSafe});
     fixture.cleaning.DustSignalUpdated(rvc::DustSignal::invalid);
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
                                                rvc::MotionCommand::forward,
+                                               rvc::MotionCommand::forward,
                                            }));
     EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
-                                                 rvc::CleaningCommand::active,
+                                                 rvc::CleaningCommand::normal,
                                                  rvc::CleaningCommand::normal,
                                              }));
 }
@@ -63,13 +64,14 @@ TEST(AutomaticCleaningSessionTest, ResumeSessionEnablesPoliciesAfterStop) {
     fixture.session.StopSession();
     fixture.clearSinks();
     fixture.session.ResumeSession(rvc::SessionSource::User);
-    fixture.navigation.FusedObstacleSnapshot({rvc::FusedObstacleSnapshotKind::forwardSafe});
+    fixture.navigation.FusedObstacleSnapshot({rvc::FusedObstacleSnapshotKind::leadingSectorSafe});
 
     EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
                                                rvc::MotionCommand::forward,
+                                               rvc::MotionCommand::forward,
                                            }));
     EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
-                                                 rvc::CleaningCommand::active,
+                                                 rvc::CleaningCommand::normal,
                                              }));
 }
 
@@ -85,5 +87,23 @@ TEST(AutomaticCleaningSessionTest, RequestServiceOrResetStopsMotionAndSuspendsCl
                                            }));
     EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
                                                  rvc::CleaningCommand::suspend,
+                                             }));
+}
+
+TEST(AutomaticCleaningSessionTest, StartSessionResetsTravelToggleForwardAndNormalCleaning) {
+    AutomaticCleaningSessionFixture fixture;
+
+    fixture.session.StartSession(rvc::SessionSource::User);
+    fixture.navigation.DustManeuverComplete();
+    fixture.clearSinks();
+
+    fixture.session.StartSession(rvc::SessionSource::User);
+
+    EXPECT_EQ(fixture.navigation.travelToggle(), rvc::TravelToggle::Forward);
+    EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
+                                               rvc::MotionCommand::forward,
+                                           }));
+    EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
+                                                 rvc::CleaningCommand::normal,
                                              }));
 }

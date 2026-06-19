@@ -20,6 +20,12 @@ FusedObstacleSnapshot ObstaclePerceptionContext::ObstacleStateChanged(const Obst
         return FusedObstacleSnapshot{};
     }
 
+    if (event.kind == ObstacleEventKind::backSample && navigation_.isDustManeuvering()) {
+        FusedObstacleSnapshot ignored{};
+        ignored.valid = false;
+        return ignored;
+    }
+
     const auto snapshot = fuse(event);
     navigation_.FusedObstacleSnapshot(snapshot);
     return snapshot;

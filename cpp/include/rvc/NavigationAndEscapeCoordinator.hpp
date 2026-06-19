@@ -19,6 +19,7 @@ public:
     void FusedObstacleSnapshot(const rvc::FusedObstacleSnapshot& snapshot);
 
     TravelToggle travelToggle() const noexcept { return travelToggle_; }
+    bool isDustManeuvering() const noexcept { return motionState_ == MotionState::DustManeuvering; }
 
 private:
     void send(MotionCommand command, ProbeSensor probeSensor = ProbeSensor::TBD);

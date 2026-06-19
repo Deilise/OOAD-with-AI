@@ -21,15 +21,18 @@ struct ObstaclePerceptionContextFixture {
 rvc::ObstacleEvent obstacle(rvc::ObstacleEventKind kind,
                             rvc::TimeStamp time,
                             bool frontBlocked = false,
-                            bool leftBlocked = false) {
+                            bool leftBlocked = false,
+                            bool backBlocked = false,
+                            rvc::ProbeSensor probeSensor = rvc::ProbeSensor::front) {
     rvc::ObstacleEvent event;
     event.kind = kind;
     event.sampleTime = time;
     event.frontBlocked = frontBlocked;
     event.leftBlocked = leftBlocked;
+    event.backBlocked = backBlocked;
     if (kind == rvc::ObstacleEventKind::probePoseRightSample) {
         event.probePose = rvc::ProbePose::right;
-        event.probeSensor = rvc::ProbeSensor::front;
+        event.probeSensor = probeSensor;
     }
     return event;
 }
@@ -185,4 +188,114 @@ TEST(ObstaclePerceptionContextTest, ObstacleStateChangedMapsFrontSample) {
 
     EXPECT_EQ(frontSample.kind, rvc::FusedObstacleSnapshotKind::valid);
     EXPECT_EQ(snapshot.kind, rvc::FusedObstacleSnapshotKind::valid);
+}
+
+TEST(ObstaclePerceptionContextTest, BackSampleSetsLeadingSectorBlockedWhenToggledBackward) {
+    ObstaclePerceptionContextFixture fixture;
+    fixture.navigation.SessionStateChanged(true, rvc::TravelToggle::Backward);
+    fixture.motionSink.clear();
+
+    const auto snapshot = fixture.perception.ObstacleStateChanged(
+        obstacle(rvc::ObstacleEventKind::backSample, 20, false, false, true));
+
+    EXPECT_EQ(snapshot.kind, rvc::FusedObstacleSnapshotKind::valid);
+    EXPECT_TRUE(snapshot.leadingSectorBlocked);
+    EXPECT_FALSE(snapshot.leadingSectorSafe);
+}
+
+TEST(ObstaclePerceptionContextTest, LeadingSectorBlockedRequestsProbeWithBackSensorWhenToggledBackward) {
+    ObstaclePerceptionContextFixture fixture;
+    fixture.navigation.SessionStateChanged(true, rvc::TravelToggle::Backward);
+    fixture.motionSink.clear();
+
+    const auto snapshot = fixture.perception.ObstacleStateChanged(
+        obstacle(rvc::ObstacleEventKind::leadingSectorBlocked, 21));
+
+    EXPECT_EQ(snapshot.kind, rvc::FusedObstacleSnapshotKind::ambiguous);
+    EXPECT_TRUE(snapshot.leadingSectorBlocked);
+    EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
+                                               rvc::MotionCommand::probeRightSide,
+                                           }));
+    ASSERT_EQ(fixture.motionSink.probeSensors.size(), 1u);
+    EXPECT_EQ(fixture.motionSink.probeSensors[0], rvc::ProbeSensor::back);
+}
+
+TEST(ObstaclePerceptionContextTest, ProbePoseRightSampleUsesBackBlockedWhenToggledBackward) {
+    ObstaclePerceptionContextFixture fixture;
+    fixture.navigation.SessionStateChanged(true, rvc::TravelToggle::Backward);
+    fixture.motionSink.clear();
+    fixture.perception.ObstacleStateChanged(obstacle(rvc::ObstacleEventKind::leadingSectorBlocked, 22));
+    fixture.motionSink.clear();
+
+    const auto snapshot = fixture.perception.ObstacleStateChanged(obstacle(
+        rvc::ObstacleEventKind::probePoseRightSample, 23, false, false, true, rvc::ProbeSensor::back));
+
+    EXPECT_EQ(snapshot.kind, rvc::FusedObstacleSnapshotKind::rightTurnInvalid);
+    EXPECT_TRUE(snapshot.leadingSectorBlocked);
+    EXPECT_TRUE(snapshot.leftTurnViable);
+}
+
+TEST(ObstaclePerceptionContextTest, DustDetectedTriggersDustManeuverSpinAndBoost) {
+    ObstaclePerceptionContextFixture fixture;
+    fixture.navigation.SessionStateChanged(true, rvc::TravelToggle::Forward);
+    fixture.cleaning.SessionStateChanged(true);
+    fixture.motionSink.clear();
+    fixture.cleaningSink.clear();
+
+    fixture.perception.ObstacleStateChanged(obstacle(rvc::ObstacleEventKind::dustDetected, 30));
+
+    EXPECT_EQ(fixture.motionSink.commands, (std::vector<rvc::MotionCommand>{
+                                               rvc::MotionCommand::stop,
+                                               rvc::MotionCommand::spin540Clockwise,
+                                           }));
+    EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
+                                                 rvc::CleaningCommand::boost,
+                                             }));
+}
+
+TEST(ObstaclePerceptionContextTest, DustClearedTogglesTravelAndSetsNormalCleaning) {
+    ObstaclePerceptionContextFixture fixture;
+    fixture.navigation.SessionStateChanged(true, rvc::TravelToggle::Forward);
+    fixture.cleaning.SessionStateChanged(true);
+    fixture.motionSink.clear();
+    fixture.cleaningSink.clear();
+
+    fixture.perception.ObstacleStateChanged(obstacle(rvc::ObstacleEventKind::dustCleared, 31));
+
+    EXPECT_EQ(fixture.navigation.travelToggle(), rvc::TravelToggle::Backward);
+    EXPECT_EQ(fixture.cleaningSink.commands, (std::vector<rvc::CleaningCommand>{
+                                                 rvc::CleaningCommand::normal,
+                                             }));
+}
+
+TEST(ObstaclePerceptionContextTest, DustDetectedDeferredWhileAvoiding) {
+    ObstaclePerceptionContextFixture fixture;
+    fixture.navigation.SessionStateChanged(true);
+    fixture.cleaning.SessionStateChanged(true);
+    fixture.perception.ObstacleStateChanged(obstacle(rvc::ObstacleEventKind::leadingSectorBlocked, 40));
+    fixture.motionSink.clear();
+    fixture.cleaningSink.clear();
+
+    fixture.perception.ObstacleStateChanged(obstacle(rvc::ObstacleEventKind::dustDetected, 41));
+
+    EXPECT_TRUE(fixture.motionSink.commands.empty());
+    EXPECT_TRUE(fixture.cleaningSink.commands.empty());
+}
+
+TEST(ObstaclePerceptionContextTest, BackSampleIgnoredDuringDustManeuver) {
+    ObstaclePerceptionContextFixture fixture;
+    fixture.navigation.SessionStateChanged(true, rvc::TravelToggle::Backward);
+    fixture.cleaning.SessionStateChanged(true);
+    fixture.perception.ObstacleStateChanged(obstacle(rvc::ObstacleEventKind::dustDetected, 50));
+    ASSERT_TRUE(fixture.navigation.isDustManeuvering());
+    fixture.motionSink.clear();
+    fixture.cleaningSink.clear();
+
+    const auto snapshot = fixture.perception.ObstacleStateChanged(
+        obstacle(rvc::ObstacleEventKind::backSample, 51, false, false, true));
+
+    EXPECT_FALSE(snapshot.valid);
+    EXPECT_FALSE(snapshot.leadingSectorBlocked);
+    EXPECT_TRUE(fixture.motionSink.commands.empty());
+    EXPECT_TRUE(fixture.cleaningSink.commands.empty());
 }

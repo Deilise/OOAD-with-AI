@@ -12,16 +12,27 @@ public:
                                    SurfaceCleaningController& cleaning);
 
     void SessionStateChanged(bool active);
+    void SessionStateChanged(bool active, TravelToggle travelToggle);
+    void RequestRightSideProbe(ProbeReason reason);
+    void DustManeuverRequested();
+    void DustManeuverComplete();
     void FusedObstacleSnapshot(const rvc::FusedObstacleSnapshot& snapshot);
 
+    TravelToggle travelToggle() const noexcept { return travelToggle_; }
+    bool isDustManeuvering() const noexcept { return motionState_ == MotionState::DustManeuvering; }
+
 private:
-    void send(MotionCommand command);
+    void send(MotionCommand command, ProbeSensor probeSensor = ProbeSensor::TBD);
     void handleInvalidOrStale(const rvc::FusedObstacleSnapshot& snapshot);
     void handleSurrounded(const rvc::FusedObstacleSnapshot& snapshot);
-    void handleForwardBlocked(const rvc::FusedObstacleSnapshot& snapshot);
-    void handleForwardSafe();
+    void handleLeadingSectorBlocked(const rvc::FusedObstacleSnapshot& snapshot);
+    void handleLeadingSectorSafe();
+    void resumeCruisePerToggle();
+    void ToggleTravelDirection();
+    ProbeSensor currentProbeSensor() const;
 
     MotionState motionState_{MotionState::Stopped};
+    TravelToggle travelToggle_{TravelToggle::Forward};
     Distance backupDistanceRemaining_{0.0};
     bool sessionActive_{false};
     MotionCommandSink& motionSink_;
