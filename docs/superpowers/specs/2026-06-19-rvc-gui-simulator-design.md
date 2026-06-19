@@ -1,40 +1,40 @@
-# RVC GUI Simulator Design
+# RVC GUI 시뮬레이터 설계
 
-Date: 2026-06-19
+작성일: 2026-06-19
 
-## Goal
+## 목표
 
-Replace the existing scripted console simulator with a simulator under `cpp/simul` that can show a photo-matched 10x10 board in a Windows GUI, step through each simulation manually or automatically, and report PASS/FAIL for every scenario.
+기존 스크립트형 콘솔 시뮬레이터를 `cpp/simul` 아래의 새 시뮬레이터로 대체한다. 새 시뮬레이터는 Windows GUI에서 사진과 동일한 10x10 보드를 표시하고, 각 시뮬레이션을 수동 또는 자동으로 한 단계씩 진행하며, 모든 시나리오의 PASS/FAIL 여부를 확인할 수 있어야 한다.
 
-The simulator must include all 30 existing scripted scenarios plus one new scenario based on the provided board image.
+시뮬레이터는 기존 30개 시나리오 전체와 제공된 보드 이미지 기반 신규 시나리오 1개를 포함한다.
 
-## Context
+## 현재 맥락
 
-The current active simulator is `cpp/simulator/rvc_simulator.cpp`. It drives `rvc::RvcSoftwareController` through 30 scripted scenarios and compares recorded motion and cleaning commands with expected command lists.
+현재 활성 시뮬레이터는 `cpp/simulator/rvc_simulator.cpp`이다. 이 파일은 `rvc::RvcSoftwareController`에 30개 스크립트 시나리오를 입력하고, 기록된 motion command 및 cleaning command를 기대 command 목록과 비교한다.
 
-The CMake target is currently named `rvc_simulator`, and CI builds and runs that target on Ubuntu. The replacement must preserve that target name so scripts and CI continue to work.
+CMake target 이름은 현재 `rvc_simulator`이며, Ubuntu CI에서도 이 target을 빌드하고 실행한다. 새 구현은 기존 스크립트와 CI가 계속 동작하도록 target 이름을 그대로 유지한다.
 
-The requested replacement location is `cpp/simul`. The old `cpp/simulator` implementation will be replaced by the new simulator target source path.
+사용자가 요청한 새 위치는 `cpp/simul`이다. 기존 `cpp/simulator` 구현은 새 `cpp/simul` 기반 target source로 대체한다.
 
-## Chosen Approach
+## 선택한 방식
 
-Use C++17 with a platform split:
+C++17 기반으로 플랫폼을 분리한다.
 
-- Windows builds: a Win32/GDI GUI executable.
-- Non-Windows builds: a console runner using the same scenario engine.
+- Windows 빌드: Win32/GDI GUI 실행 파일
+- 비-Windows 빌드: 동일 시나리오 엔진을 사용하는 콘솔 runner
 
-This keeps the Windows user experience graphical without adding Qt, SDL, SFML, or other external GUI dependencies. It also keeps Ubuntu CI stable because it can continue to build and run `rvc_simulator` without needing a display server.
+이 방식은 Windows에서 별도 GUI 프레임워크 없이 그래픽 창을 제공한다. Qt, SDL, SFML 같은 외부 GUI 의존성을 추가하지 않으므로 빌드 환경이 단순하고, Ubuntu CI에서는 display server 없이도 `rvc_simulator`를 계속 빌드하고 실행할 수 있다.
 
-## Board Graphic
+## 보드 그래픽
 
-The GUI board is a 10x10 grid matching the provided reference image:
+GUI 보드는 제공된 기준 이미지와 같은 10x10 격자이다.
 
-- Dark gray cells are obstacles and display the Korean obstacle label from the image.
-- Yellow cells are dust and display the Korean dust label from the image.
-- Light gray cells are free floor.
-- The robot starts at row 10, column 2 with a green highlighted cell and numeric label `1`.
+- 진회색 셀은 장애물이며 이미지의 한글 장애물 라벨을 표시한다.
+- 노란 셀은 먼지이며 이미지의 한글 먼지 라벨을 표시한다.
+- 밝은 회색 셀은 이동 가능한 바닥이다.
+- 로봇은 10행 2열에서 시작하며, 초록색 강조 셀과 숫자 `1`로 표시한다.
 
-The approved board layout is:
+승인된 보드 배치는 다음과 같다.
 
 ```text
 Row 01: W W W W W W W W W W
@@ -49,93 +49,93 @@ Row 09: W . W D D . . . D W
 Row 10: W R W W W W W W W W
 ```
 
-Legend:
+범례:
 
-- `W`: obstacle/wall cell
-- `D`: dust cell
-- `R`: robot start cell
-- `.`: free floor
+- `W`: 장애물 또는 벽 셀
+- `D`: 먼지 셀
+- `R`: 로봇 시작 셀
+- `.`: 빈 바닥 셀
 
-## Simulator Model
+## 시뮬레이터 모델
 
-The simulator core is separated from presentation:
+시뮬레이터 코어와 표시 계층을 분리한다.
 
-- Scenario definitions describe actions, expected motion commands, expected cleaning commands, optional board events, and notes.
-- A scenario runner creates a fresh `RvcSoftwareController` for each scenario.
-- Recording sinks capture motion and cleaning commands.
-- Each step applies one action, captures any newly emitted commands, and updates the scenario result.
-- The final PASS/FAIL result is computed by comparing actual command traces against expected traces.
+- 시나리오 정의는 action 목록, 기대 motion command, 기대 cleaning command, 선택적 보드 이벤트, note를 가진다.
+- 시나리오 runner는 각 시나리오마다 새 `RvcSoftwareController`를 생성한다.
+- 기록용 sink는 motion command와 cleaning command를 캡처한다.
+- 각 step은 action 하나를 적용하고, 새로 발생한 command를 캡처하며, 시나리오 상태를 갱신한다.
+- 최종 PASS/FAIL은 실제 command trace와 기대 command trace를 비교해서 계산한다.
 
-This keeps GUI interaction deterministic and lets the console runner use the same behavior.
+이 구조를 사용하면 GUI 수동 진행이 결정적으로 동작하고, 콘솔 runner도 같은 동작을 공유할 수 있다.
 
-## Scenario Coverage
+## 시나리오 범위
 
-The replacement simulator includes:
+새 시뮬레이터는 다음을 포함한다.
 
-- Existing `TC-01` through `TC-30` with the same action sequences and expected command traces.
-- New `TC-31`, based on the approved reference board.
+- 기존 `TC-01`부터 `TC-30`까지의 모든 action sequence와 기대 command trace
+- 승인된 보드 이미지를 기반으로 한 신규 `TC-31`
 
-`TC-31` uses the photo-matched board as its visual state and exercises a path through the board with obstacles and dust cells. It must report PASS/FAIL like the existing scenarios and must be available in manual and automatic GUI stepping.
+`TC-31`은 사진과 동일한 보드를 시각 상태로 사용하고, 장애물 및 먼지 셀이 포함된 경로를 따라가는 신규 테스트이다. 이 시나리오도 기존 시나리오와 동일하게 PASS/FAIL을 보고하며, GUI에서 수동 진행과 자동 진행을 모두 지원한다.
 
-## Windows GUI Behavior
+## Windows GUI 동작
 
-The Windows GUI contains:
+Windows GUI는 다음 요소를 포함한다.
 
-- A photo-matched 10x10 board.
-- A scenario selector covering all 31 scenarios.
-- PASS/FAIL status for the selected scenario and aggregate run.
-- Current step index and action name.
-- Expected and actual motion command traces.
-- Expected and actual cleaning command traces.
-- Controls for `Previous`, `Next`, `Auto`, `Reset`, and `Run All`.
+- 사진과 동일한 10x10 보드
+- 31개 전체 시나리오 선택 UI
+- 선택된 시나리오의 PASS/FAIL 상태와 전체 실행 요약
+- 현재 step 번호와 action 이름
+- 기대 motion command trace와 실제 motion command trace
+- 기대 cleaning command trace와 실제 cleaning command trace
+- `Previous`, `Next`, `Auto`, `Reset`, `Run All` 컨트롤
 
-Manual stepping advances one action at a time. Automatic stepping uses a timer to advance through the selected scenario. `Run All` executes every scenario to completion and updates the PASS/FAIL summary.
+수동 진행은 action 하나씩 전진한다. 자동 진행은 타이머를 사용해 선택된 시나리오를 순서대로 진행한다. `Run All`은 모든 시나리오를 끝까지 실행하고 PASS/FAIL 요약을 갱신한다.
 
-The board renderer uses stable cell sizes, consistent colors, and centered labels to match the provided image. The GUI remains usable on a typical desktop window without requiring resizing.
+보드 renderer는 고정된 셀 크기, 일관된 색상, 중앙 정렬 라벨을 사용해 제공된 이미지와 최대한 동일하게 보이도록 한다. GUI는 일반 데스크톱 창 크기에서 별도 리사이징 없이 사용할 수 있어야 한다.
 
-## Console Fallback Behavior
+## 콘솔 fallback 동작
 
-On non-Windows builds, the same `rvc_simulator` target compiles as a console executable. It runs all 31 scenarios, prints PASS/FAIL lines, supports `--verbose`, and exits with status code `0` only when all scenarios pass.
+비-Windows 빌드에서는 같은 `rvc_simulator` target이 콘솔 실행 파일로 컴파일된다. 콘솔 runner는 31개 전체 시나리오를 실행하고, PASS/FAIL 줄을 출력하며, `--verbose`를 지원한다. 모든 시나리오가 통과할 때만 exit code `0`을 반환한다.
 
-This is the CI path and preserves the behavior expected by `.github/workflows/cpp-ci.yml`.
+이 경로는 CI용이며, `.github/workflows/cpp-ci.yml`이 기대하는 동작을 유지한다.
 
-## Build And Script Integration
+## 빌드 및 스크립트 연동
 
-`cpp/CMakeLists.txt` will change the simulator source path from `simulator/rvc_simulator.cpp` to the new `simul` implementation. The executable target remains `rvc_simulator`.
+`cpp/CMakeLists.txt`는 simulator source path를 기존 `simulator/rvc_simulator.cpp`에서 새 `simul` 구현으로 변경한다. 실행 파일 target 이름은 `rvc_simulator`로 유지한다.
 
-The existing scripts remain valid:
+기존 실행 스크립트는 계속 유효해야 한다.
 
 - `cpp/run-simulator.ps1`
 - `cpp/run-simulator.bat`
 - `2nd ooad/06_simulator/run-simulator.ps1`
 - `2nd ooad/06_simulator/run-simulator.bat`
 
-The `cpp/README.md` and `2nd ooad/06_simulator/RVC_Simulator.md` will be updated to describe the new GUI/fallback behavior and the 31-scenario set.
+`cpp/README.md`와 `2nd ooad/06_simulator/RVC_Simulator.md`는 새 GUI/fallback 동작과 31개 시나리오 구성을 설명하도록 갱신한다.
 
-## Error Handling
+## 오류 처리
 
-If a scenario action emits unexpected commands, the result is FAIL and the GUI displays both expected and actual traces.
+시나리오 action이 기대하지 않은 command를 발생시키면 결과는 FAIL이며, GUI는 기대 trace와 실제 trace를 함께 표시한다.
 
-If a user switches scenario while auto mode is active, auto mode stops and the selected scenario resets to its initial state.
+사용자가 자동 진행 중 다른 시나리오를 선택하면 자동 진행을 중지하고 선택된 시나리오를 초기 상태로 되돌린다.
 
-If `Previous` is used, the runner rebuilds the selected scenario from the beginning up to the requested step. This avoids mutable rollback bugs and keeps the simulation deterministic.
+`Previous`를 사용할 때는 선택된 시나리오를 처음부터 요청 step 직전까지 다시 실행해 상태를 재구성한다. 이렇게 하면 mutable rollback 버그를 피하고 시뮬레이션을 결정적으로 유지할 수 있다.
 
-## Testing Strategy
+## 테스트 전략
 
-Tests focus on the platform-neutral simulator core:
+테스트는 플랫폼 중립 시뮬레이터 코어에 집중한다.
 
-- Verify the approved reference board has exactly 10 rows and 10 columns.
-- Verify the approved board has the expected start, obstacle, and dust cells.
-- Verify all 31 scenarios are present.
-- Verify the scenario runner reports pass for the known expected traces.
-- Verify step-by-step execution accumulates the same traces as full execution.
+- 승인된 기준 보드가 정확히 10행 10열인지 검증한다.
+- 승인된 보드의 시작 셀, 장애물 셀, 먼지 셀이 기대 위치에 있는지 검증한다.
+- 전체 31개 시나리오가 존재하는지 검증한다.
+- 시나리오 runner가 알려진 기대 trace에 대해 PASS를 보고하는지 검증한다.
+- step-by-step 실행으로 누적된 trace가 full 실행 trace와 같은지 검증한다.
 
-Existing CMake/CTest coverage remains in place for the RVC controller classes. The non-Windows console runner continues to provide CI smoke coverage for the simulator target.
+기존 CMake/CTest 기반 controller 테스트는 유지한다. 비-Windows 콘솔 runner는 CI에서 simulator target의 smoke coverage를 계속 제공한다.
 
-## Out Of Scope
+## 범위 제외
 
-- Installing third-party GUI frameworks.
-- Creating a web-based simulator.
-- Changing the controller business logic to satisfy simulator visuals.
-- Replacing the existing unit tests.
-- Adding map editing or user-authored scenarios.
+- 제3자 GUI 프레임워크 설치
+- 웹 기반 시뮬레이터 생성
+- 시뮬레이터 시각화에 맞추기 위한 controller 비즈니스 로직 변경
+- 기존 unit test 대체
+- 지도 편집 또는 사용자 작성 시나리오 추가
