@@ -40,6 +40,7 @@ The actual C++ unit tests are in [`../../cpp/tests`](../../cpp/tests). They veri
 Coverage was run with:
 
 ```powershell
+cd ..\..\cpp
 powershell -NoProfile -ExecutionPolicy Bypass -File .\run-coverage.ps1
 ```
 
@@ -49,8 +50,9 @@ Result:
 - Total line coverage: `87%`.
 - Required minimum from the unit-test skill: `75%`.
 - Coverage status: passed.
-- HTML report copied here: [`coverage.html`](coverage.html).
-- Original generated report location: `cpp/build-coverage/coverage/coverage.html`.
+- HTML report copied here: [`coverage.html`](coverage.html) (optional local copy).
+- Generated report location: `cpp/build-coverage/coverage/html/index.html`.
+- LCOV info file: `cpp/build-coverage/coverage/coverage.filtered.info`.
 
 Coverage by main source area:
 

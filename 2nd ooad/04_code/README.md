@@ -98,7 +98,7 @@ On pushes and pull requests, CI runs `cppcheck` static analysis on the RVC heade
 
 ## Coverage
 
-Coverage is available for GCC/Clang builds through `gcov`/`gcovr`. The coverage script removes and recreates `build-coverage` each time so CMake does not reuse an old non-coverage compiler cache.
+Coverage is available for GCC/Clang builds through `gcov` and `lcov`. The coverage script removes and recreates `build-coverage` each time so CMake does not reuse an old non-coverage compiler cache.
 
 On Windows, use an MSYS2 UCRT64 or CLANG64 compiler. Older MinGW Win32-thread builds may compile the demo but cannot build GoogleTest because their standard library lacks `std::mutex`.
 
@@ -114,18 +114,20 @@ or:
 run-coverage.bat
 ```
 
-The coverage build uses `cpp/build-coverage` and leaves the normal build directory alone. If `gcovr` is installed, the script writes:
+The coverage build uses `cpp/build-coverage` and leaves the normal build directory alone. When `lcov`, `genhtml`, and `gcov` are installed, the script writes:
 
-- `build-coverage/coverage/coverage.html`
-- `build-coverage/coverage/coverage.xml`
+- `build-coverage/coverage/coverage.filtered.info`
+- `build-coverage/coverage/html/index.html`
 
-If `gcovr` is missing, install it with:
+On Windows with MSYS2 UCRT64, install coverage tools with:
 
-```powershell
-python -m pip install gcovr
+```sh
+pacman -S --needed mingw-w64-ucrt-x86_64-lcov
 ```
 
-If coverage still reports `0%`, check the configure output. Coverage requires `g++` or Clang; MSVC builds are not supported by this `gcovr` setup.
+On Linux, install `lcov` from your package manager (for example `sudo apt-get install lcov`).
+
+If coverage still reports `0%`, check the configure output. Coverage requires `g++` or Clang; MSVC builds are not supported by this gcov/lcov setup.
 
 If the script says no compiler with `std::mutex` support was found, install MSYS2:
 
@@ -137,7 +139,7 @@ Then open `MSYS2 UCRT64` and run:
 
 ```sh
 pacman -Syu
-pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
+pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-lcov
 ```
 
 After that, rerun `.\run-coverage.ps1`. It will automatically prefer `C:\msys64\ucrt64\bin\g++.exe`.
@@ -149,6 +151,8 @@ cmake -S cpp -B cpp/build-coverage -DRVC_ENABLE_COVERAGE=ON -DCMAKE_CXX_COMPILER
 cmake --build cpp/build-coverage --target rvc_controller_tests
 cmake --build cpp/build-coverage --target coverage
 ```
+
+The CMake `coverage` target writes the same `coverage.filtered.info` and `coverage/html/index.html` files under the chosen build directory.
 
 ## Trace Notes
 

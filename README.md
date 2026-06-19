@@ -13,7 +13,7 @@ It includes:
 - controller classes generated from the class diagram and sequence diagrams
 - GoogleTest tests split by class
 - a CLI simulator with 30 scripted RVC scenarios
-- code coverage support through `gcovr`
+- code coverage support through `gcov` and `lcov`
 
 ## Local Build
 
@@ -42,7 +42,7 @@ The workflow:
 - builds the RVC simulator
 - runs all GoogleTest tests
 - runs all 30 simulator scenarios as the system-test replacement
-- generates a `gcovr` coverage report
+- generates a `gcov`/`lcov` coverage report
 - uploads coverage and simulator artifacts
 
 See `.github/workflows/cpp-ci.yml`.

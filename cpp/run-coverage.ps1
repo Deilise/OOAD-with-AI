@@ -102,10 +102,46 @@ Install MSYS2 UCRT64 on Windows 11, then rerun this script:
 After MSYS2 is installed, open "MSYS2 UCRT64" and run:
 
   pacman -Syu
-  pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
+  pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-lcov
 
 This script will automatically use C:\msys64\ucrt64\bin\g++.exe when it exists.
 "@
+}
+
+function Convert-ToMsysPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Path
+    )
+
+    $fullPath = (Resolve-Path $Path).Path
+    if ($fullPath -match '^([A-Za-z]):\\(.*)$') {
+        $drive = $Matches[1].ToLower()
+        $rest = $Matches[2] -replace '\\', '/'
+        return "/$drive/$rest"
+    }
+
+    return $fullPath -replace '\\', '/'
+}
+
+function Find-MsysBash {
+    $candidates = @(
+        "C:\msys64\usr\bin\bash.exe",
+        "C:\msys64\msys2_shell.cmd"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return (Resolve-Path $candidate).Path
+        }
+    }
+
+    $fromPath = Get-Command bash -ErrorAction SilentlyContinue
+    if ($null -ne $fromPath) {
+        return $fromPath.Source
+    }
+
+    return $null
 }
 
 $buildDir = "build-coverage"
@@ -141,22 +177,24 @@ Invoke-Checked cmake @cmakeArgs
 Invoke-Checked cmake --build $buildDir --target rvc_controller_tests
 Invoke-Checked ctest --test-dir $buildDir --output-on-failure
 
-$gcovr = Get-Command gcovr -ErrorAction SilentlyContinue
-if ($null -eq $gcovr) {
-    Write-Host "gcovr is not installed, so coverage data was generated but no report was created."
-    Write-Host "Install it with: python -m pip install gcovr"
+$bash = Find-MsysBash
+$lcovScript = Join-Path $PSScriptRoot "scripts/run-lcov-report.sh"
+
+if ($null -eq $bash -or -not (Test-Path $lcovScript)) {
+    Write-Host "MSYS2 bash or scripts/run-lcov-report.sh was not found, so coverage data was generated but no report was created."
+    Write-Host "Install MSYS2 and lcov with:"
+    Write-Host "  pacman -S --needed mingw-w64-ucrt-x86_64-lcov"
     exit 0
 }
 
-$coverageDir = Join-Path $buildDir "coverage"
-New-Item -ItemType Directory -Force $coverageDir | Out-Null
+$unixRoot = Convert-ToMsysPath $PSScriptRoot
+$unixCompilerBin = Convert-ToMsysPath $coverageCompilerBin
+$lcovCommand = "export PATH='$unixCompilerBin':`$PATH && cd '$unixRoot' && bash scripts/run-lcov-report.sh '$buildDir' '.'"
 
-$gcovrTextArgs = @("--root", ".", "--object-directory", $buildDir, "--filter", "src", "--filter", "include", "--exclude", "tests", "--txt")
-$gcovrHtmlArgs = @("--root", ".", "--object-directory", $buildDir, "--filter", "src", "--filter", "include", "--exclude", "tests", "--html", "--html-details", "-o", "$coverageDir/coverage.html")
-$gcovrXmlArgs = @("--root", ".", "--object-directory", $buildDir, "--filter", "src", "--filter", "include", "--exclude", "tests", "--xml", "-o", "$coverageDir/coverage.xml")
+& $bash -lc $lcovCommand
+if ($LASTEXITCODE -ne 0) {
+    throw "lcov/genhtml failed with exit code $LASTEXITCODE"
+}
 
-Invoke-Checked gcovr @gcovrTextArgs
-Invoke-Checked gcovr @gcovrHtmlArgs
-Invoke-Checked gcovr @gcovrXmlArgs
-
-Write-Host "Coverage HTML report: $PSScriptRoot\$coverageDir\coverage.html"
+Write-Host "Coverage info: $PSScriptRoot\$buildDir\coverage\coverage.filtered.info"
+Write-Host "Coverage HTML report: $PSScriptRoot\$buildDir\coverage\html\index.html"

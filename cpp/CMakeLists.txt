@@ -72,40 +72,21 @@ if(RVC_BUILD_TESTS)
     gtest_discover_tests(rvc_controller_tests)
 
     if(RVC_ENABLE_COVERAGE)
-        find_program(GCOVR_EXECUTABLE gcovr)
-        if(GCOVR_EXECUTABLE)
+        find_program(GCOV_EXECUTABLE gcov)
+        find_program(LCOV_EXECUTABLE lcov)
+        find_program(GENHTML_EXECUTABLE genhtml)
+        find_program(BASH_EXECUTABLE bash)
+
+        if(GCOV_EXECUTABLE AND LCOV_EXECUTABLE AND GENHTML_EXECUTABLE AND BASH_EXECUTABLE)
             add_custom_target(coverage
                 COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure
-                COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/coverage
-                COMMAND ${GCOVR_EXECUTABLE}
-                    --root ${CMAKE_CURRENT_SOURCE_DIR}
-                    --object-directory ${CMAKE_BINARY_DIR}
-                    --filter ${CMAKE_CURRENT_SOURCE_DIR}/src
-                    --filter ${CMAKE_CURRENT_SOURCE_DIR}/include
-                    --exclude ${CMAKE_CURRENT_SOURCE_DIR}/tests
-                    --html --html-details
-                    -o ${CMAKE_BINARY_DIR}/coverage/coverage.html
-                COMMAND ${GCOVR_EXECUTABLE}
-                    --root ${CMAKE_CURRENT_SOURCE_DIR}
-                    --object-directory ${CMAKE_BINARY_DIR}
-                    --filter ${CMAKE_CURRENT_SOURCE_DIR}/src
-                    --filter ${CMAKE_CURRENT_SOURCE_DIR}/include
-                    --exclude ${CMAKE_CURRENT_SOURCE_DIR}/tests
-                    --xml
-                    -o ${CMAKE_BINARY_DIR}/coverage/coverage.xml
-                COMMAND ${GCOVR_EXECUTABLE}
-                    --root ${CMAKE_CURRENT_SOURCE_DIR}
-                    --object-directory ${CMAKE_BINARY_DIR}
-                    --filter ${CMAKE_CURRENT_SOURCE_DIR}/src
-                    --filter ${CMAKE_CURRENT_SOURCE_DIR}/include
-                    --exclude ${CMAKE_CURRENT_SOURCE_DIR}/tests
-                    --txt
+                COMMAND ${BASH_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run-lcov-report.sh ${CMAKE_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}
                 DEPENDS rvc_controller_tests
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                COMMENT "Running tests and generating coverage report"
+                COMMENT "Running tests and generating gcov/lcov coverage report"
             )
         else()
-            message(STATUS "gcovr not found; coverage instrumentation is enabled, but report generation is unavailable.")
+            message(STATUS "gcov, lcov, genhtml, or bash not found; coverage instrumentation is enabled, but report generation is unavailable.")
         endif()
     endif()
 endif()

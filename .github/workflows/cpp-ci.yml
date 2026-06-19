@@ -60,7 +60,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build g++ gcovr
+          sudo apt-get install -y cmake ninja-build g++ lcov
 
       - name: Configure
         run: |
@@ -89,11 +89,9 @@ jobs:
         with:
           name: rvc-coverage-report
           path: |
-            cpp/build/coverage/coverage.html
-            cpp/build/coverage/coverage.xml
-            cpp/build/coverage/*.html
-            cpp/build/coverage/*.css
-            cpp/build/coverage/*.js
+            cpp/build/coverage/coverage.filtered.info
+            cpp/build/coverage/html/index.html
+            cpp/build/coverage/html/
           if-no-files-found: warn
 
       - name: Upload simulator binary
