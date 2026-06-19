@@ -1,7 +1,7 @@
-#include "../../cpp/simul/ConsoleRunner.hpp"
+#include "ConsoleRunner.hpp"
 
 #ifdef _WIN32
-#include "../../cpp/simul/Win32Gui.hpp"
+#include "Win32Gui.hpp"
 #endif
 
 #include <string>

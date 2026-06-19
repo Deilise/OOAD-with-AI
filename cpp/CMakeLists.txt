@@ -32,12 +32,35 @@ target_include_directories(rvc_controller
 target_compile_features(rvc_controller PUBLIC cxx_std_17)
 rvc_enable_coverage(rvc_controller)
 
+add_library(rvc_simulator_core
+    simul/SimulatorCore.cpp
+)
+
+target_include_directories(rvc_simulator_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_compile_features(rvc_simulator_core PUBLIC cxx_std_17)
+target_link_libraries(rvc_simulator_core PUBLIC rvc_controller)
+rvc_enable_coverage(rvc_simulator_core)
+
 add_executable(rvc_demo examples/demo.cpp)
 target_link_libraries(rvc_demo PRIVATE rvc_controller)
 rvc_enable_coverage(rvc_demo)
 
-add_executable(rvc_simulator simulator/rvc_simulator.cpp)
-target_link_libraries(rvc_simulator PRIVATE rvc_controller)
+set(RVC_SIMULATOR_SOURCES
+    simul/rvc_simulator.cpp
+    simul/ConsoleRunner.cpp
+)
+
+if(WIN32)
+    list(APPEND RVC_SIMULATOR_SOURCES simul/Win32Gui.cpp)
+endif()
+
+add_executable(rvc_simulator ${RVC_SIMULATOR_SOURCES})
+target_link_libraries(rvc_simulator PRIVATE rvc_simulator_core)
 rvc_enable_coverage(rvc_simulator)
 
 if(RVC_BUILD_TESTS)
@@ -58,12 +81,14 @@ if(RVC_BUILD_TESTS)
         tests/NavigationAndEscapeCoordinatorTest.cpp
         tests/ObstaclePerceptionContextTest.cpp
         tests/RvcSoftwareControllerTest.cpp
+        tests/SimulatorCoreTest.cpp
         tests/SurfaceCleaningControllerTest.cpp
     )
 
     target_link_libraries(rvc_controller_tests
         PRIVATE
             rvc_controller
+            rvc_simulator_core
             GTest::gtest_main
     )
     rvc_enable_coverage(rvc_controller_tests)

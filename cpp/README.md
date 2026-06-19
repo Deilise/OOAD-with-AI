@@ -9,7 +9,7 @@ This directory contains a C++17 skeleton generated from the SSDs, SDs, and class
 - `include/rvc/*Controller.hpp` and `include/rvc/*Session.hpp` define the four main SRS objects plus the composition root.
 - `src/*.cpp` implements basic control flow that follows the SSD/SD messages.
 - `examples/demo.cpp` shows one simple run through start, cruise, dust boost, surrounded escape, and stop messages.
-- `simulator/rvc_simulator.cpp` runs 30 scripted RVC scenarios and reports pass/fail.
+- `simul/` contains the shared simulator core, Windows GUI runner, and non-Windows console runner for 31 scripted RVC scenarios.
 
 ## Build
 
@@ -41,12 +41,19 @@ g++ -std=c++17 -I include examples/demo.cpp src/AutomaticCleaningSession.cpp src
 
 ## Simulator
 
-The simulator is a CLI executable that drives the controller through 30 scripted scenarios. It reports pass/fail for each scenario and includes right-side probe and required reverse-to-turning cases:
+The simulator target is `rvc_simulator`.
 
-- `TC-12`: forward blocked, right-side probe clear, then turn right
-- `TC-13`: forward blocked, right-side probe blocked, then turn left
-- `TC-28`: going back then turning right (`reverse` before `lateralEscapeRight`)
-- `TC-29`: going back then turning left (`reverse` before `lateralEscapeLeft`)
+On Windows, running the simulator with no arguments opens the Win32/GDI GUI from `cpp/simul`. The GUI shows the approved 10x10 board, lets the user select one of 31 scenarios, advances steps manually or automatically, and displays PASS/FAIL plus expected/actual command traces.
+
+On non-Windows builds, the same target runs as a console simulator for CI. It executes all 31 scenarios and exits with code `0` only when every scenario passes.
+
+The 31 scenarios include the existing controller scenarios plus `TC-31`, the photo-board route with dust and obstacle decision. Key examples:
+
+- `TC-12`: forward blocked, right-side probe clear, then turn right.
+- `TC-13`: forward blocked, right-side probe blocked, then turn left.
+- `TC-28`: going back then turning right (`reverse` before `lateralEscapeRight`).
+- `TC-29`: going back then turning left (`reverse` before `lateralEscapeLeft`).
+- `TC-31`: approved 10x10 board route with dust and top-wall obstacle decision.
 
 From `cpp/`, run:
 
@@ -66,6 +73,8 @@ For detailed action and command traces:
 .\run-simulator.ps1 --verbose
 ```
 
+On Windows, `--verbose` uses the console verification path instead of opening the GUI.
+
 ## Test
 
 The project includes GoogleTest tests in `tests/`, with one test file per main class:
@@ -73,6 +82,7 @@ The project includes GoogleTest tests in `tests/`, with one test file per main c
 - `AutomaticCleaningSessionTest.cpp`
 - `ObstaclePerceptionContextTest.cpp`
 - `NavigationAndEscapeCoordinatorTest.cpp`
+- `SimulatorCoreTest.cpp`
 - `SurfaceCleaningControllerTest.cpp`
 - `RvcSoftwareControllerTest.cpp`
 
@@ -102,7 +112,7 @@ Or run the test executable directly:
 
 GitHub Actions is configured in `.github/workflows/cpp-ci.yml`.
 
-On pushes and pull requests, CI runs `cppcheck` static analysis on the RVC headers and source files. It then builds this project, runs GoogleTest, runs the 30-scenario simulator as the system-test replacement, generates coverage, and uploads artifacts.
+On pushes and pull requests, CI runs `cppcheck` static analysis on the RVC headers and source files. It then builds this project, runs GoogleTest, runs the 31-scenario simulator as the system-test replacement, generates coverage, and uploads artifacts.
 
 ## Coverage
 

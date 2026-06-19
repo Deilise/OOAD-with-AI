@@ -1,18 +1,20 @@
-# Roomba RVC — Simulator Summary
+# Roomba RVC - 시뮬레이터 요약
 
-Companion to the updated [code summary](../04_code/RVC_Code.md), [unit test summary](../05_unit_tests/RVC_Unit_Tests.md), [SRS](../01_requirements/RVC_SW_Controller_SRS.md), and [sequence diagrams](../03_diagrams/sd/RVC_SD_Index.md).
+이 문서는 [코드 요약](../04_code/RVC_Code.md), [단위 테스트 요약](../05_unit_tests/RVC_Unit_Tests.md), [SRS](../01_requirements/RVC_SW_Controller_SRS.md), [sequence diagram](../03_diagrams/sd/RVC_SD_Index.md)의 companion 문서이다.
 
-The active simulator source is [`../../cpp/simulator/rvc_simulator.cpp`](../../cpp/simulator/rvc_simulator.cpp), and a copied artifact is stored here as [`rvc_simulator.cpp`](rvc_simulator.cpp). This folder also includes run scripts that build and run the simulator from the OOAD artifact folder.
+활성 시뮬레이터 source는 [`../../cpp/simul`](../../cpp/simul)이다. 이 폴더의 [`rvc_simulator.cpp`](rvc_simulator.cpp)는 새 platform entry point의 산출물 스냅샷이다. 실행 스크립트는 이 OOAD 산출물 폴더에서도 `../../cpp`의 실제 target을 빌드하고 실행한다.
 
-## How the Simulator Works
+## 동작 방식
 
-- The simulator creates a `RvcSoftwareController` with recording motion and cleaning sinks.
-- Each scenario sends scripted actions such as `StartSession`, `ObstacleStateChanged`, `DustSignalUpdated`, and `StopSession`.
-- The simulator compares actual motion and cleaning commands against expected command lists.
-- It reports `[PASS]` or `[FAIL]` for each scenario and exits with failure if any scenario fails.
-- The updated scenarios model direct front/left obstacle input and right-side checking through `ProbePose::right`.
+- 시뮬레이터 target 이름은 기존과 같은 `rvc_simulator`이다.
+- Windows에서 인자 없이 실행하면 Win32/GDI GUI가 열린다.
+- GUI는 승인된 사진과 동일한 10x10 보드를 표시한다.
+- 사용자는 31개 시나리오 중 하나를 선택하고 `Previous`, `Next`, `Auto`, `Reset`, `Run All`로 수동/자동 진행을 제어한다.
+- GUI는 선택된 시나리오의 PASS/FAIL, 현재 step, 기대/실제 motion command trace, 기대/실제 cleaning command trace를 보여준다.
+- `--verbose`를 주거나 비-Windows에서 빌드하면 동일 시나리오 코어를 사용하는 콘솔 PASS/FAIL runner로 실행된다.
+- 모든 시나리오가 통과할 때만 exit code `0`을 반환한다.
 
-## Simulator Tests
+## 시뮬레이터 테스트
 
 ### Positive / Negative Index
 
@@ -38,6 +40,7 @@ The active simulator source is [`../../cpp/simulator/rvc_simulator.cpp`](../../c
 | `TC-28` | |
 | `TC-29` | |
 | `TC-30` | |
+| `TC-31` | |
 
 ### Detailed Simulator Tests
 
@@ -73,37 +76,23 @@ The active simulator source is [`../../cpp/simulator/rvc_simulator.cpp`](../../c
 | `TC-28` | Positive | Reverse occurs before right lateral escape. |
 | `TC-29` | Positive | Reverse occurs before left lateral escape. |
 | `TC-30` | Positive | Initialize, start, forward cleaning, dust boost, trap escape, resume, and stop. |
+| `TC-31` | Positive | Approved 10x10 photo-board route with dust detection and top-wall obstacle decision. |
 
-## Changed
+## 변경 사항
 
-- Simulator scenarios now use the right-side probe model instead of direct right-side sensor events.
-- Forward-blocked scenarios now expect `probeRightSide` before the final turn decision when right status is needed.
-- Avoidance scenarios now expect `restoreHeading` before `turnRight` or `turnLeft`.
-- Surrounded escape scenarios now verify reverse movement before lateral escape.
-- Scenario descriptions were updated to remove old direct-right-sensor wording.
+- 기존 단일 파일 콘솔 시뮬레이터를 `cpp/simul` 기반 구조로 대체했다.
+- 시뮬레이터 코어를 GUI와 콘솔 runner가 공유하도록 분리했다.
+- Windows 기본 실행 경로에 Win32/GDI GUI를 추가했다.
+- 비-Windows 및 `--verbose` 실행 경로에는 콘솔 PASS/FAIL runner를 유지했다.
+- 사진과 동일한 10x10 보드 배치를 `referenceBoard()`로 추가했다.
+- 사진 기반 신규 시나리오 `TC-31`을 추가했다.
+- `SimulatorCoreTest.cpp`로 보드 배치, 시나리오 개수, 전체 PASS/FAIL, step replay를 검증한다.
 
-## Added
+## 최신 실행 결과
 
-- `ProbePose::right` data in simulator obstacle actions.
-- Copied simulator source artifact: `rvc_simulator.cpp`.
-- Scenario for right-side probe clear leading to right turn.
-- Scenario for right-side probe blocked leading to left turn.
-- Scenario for probe timeout using `stopOrFallbackTBD`.
-- Scenario for front + left + probed-right blocked becoming surrounded and starting reverse.
-- Run scripts in this folder: `run-simulator.ps1` and `run-simulator.bat`.
+새 시뮬레이터는 구현 후 콘솔 검증 경로로 실행되었다.
 
-## Deleted / Removed
-
-- Direct right-side sensor simulator events such as `rightBlocked` and `rightInvalidForOpening`.
-- Old generic event names such as `frame`, `rawUpdates`, `frontUpdate`, `sideUpdate`, `sensorSnapshot`, and `forwardBlockedNotSurrounded`.
-- Old `probeOrBackupTBD` simulator expectation.
-- Scenario wording that implied a physical right-side obstacle sensor.
-
-## Latest Run Result
-
-The simulator was run after the probe-model update:
-
-- Total scenarios: `30`
-- Passed: `30`
+- Total scenarios: `31`
+- Passed: `31`
 - Failed: `0`
 - Status: passed

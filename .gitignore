@@ -34,6 +34,10 @@
 !/cpp/simulator/
 !/cpp/simulator/*.cpp
 
+!/cpp/simul/
+!/cpp/simul/*.hpp
+!/cpp/simul/*.cpp
+
 # Keep the OOAD deliverable documents, diagrams, code/test/simulator summaries,
 # and rendered diagram assets.
 !/2nd ooad/
